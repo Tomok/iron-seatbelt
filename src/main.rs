@@ -6,8 +6,9 @@ mod parser_combinator {
             complete::{multispace0, multispace1},
             is_alphanumeric, is_newline, is_space,
         },
+        error::{Error, ErrorKind},
         multi::many0,
-        AsChar, IResult,
+        AsChar, IResult, InputTakeAtPosition,
     };
     use nom_locate::{position, LocatedSpan};
 
@@ -136,24 +137,99 @@ mod parser_combinator {
     #[derive(PartialEq, Eq, Debug)]
     pub struct Parameters<'s> {
         open_brace: Span<'s>,
-        //todo
+        params: Vec<Parameter<'s>>, //should the `,` be stored as well, if included??
         closing_brace: Span<'s>,
     }
 
     impl<'s> Parameters<'s> {
         pub fn parse_span(s: Span<'s>) -> IResult<Span, Self> {
             let (s, open_brace) = tag("(")(s)?;
-            let (s, _) = multispace0(s)?;
-            //todo
-            let (s, _) = multispace0(s)?;
-            let (s, closing_brace) = tag(")")(s)?;
+            let mut params = Vec::new();
+            let mut next_param_allowed = true; //checks if a parameter is allowed, i.e. it is the
+                                               //first parameter or the last one was followed by a
+                                               //`,`
+            let mut read_pos = s; //used to keep position after each loop
+            let closing_brace = loop {
+                let (s, _) = multispace0(read_pos)?;
+                //is end of parameter list?
+                match tag(")")(s) {
+                    Ok((s, closing_brace)) => {
+                        //is end of parameter list
+                        read_pos = s;
+                        break closing_brace;
+                    }
+                    Err(nom::Err::Error(Error {
+                        input,
+                        code: ErrorKind::Tag,
+                    })) => {
+                        //is parameter?
+                        if !next_param_allowed {
+                            dbg!("No more paramenters allowed");
+                            //todo: how to state that a `,` or a `)` were expected?
+                            return Err(nom::Err::Error(Error::new(input, ErrorKind::Tag)));
+                        }
+                        let (s, param) = Parameter::parse_span(input)?;
+                        next_param_allowed = param.comma.is_some();
+                        params.push(param);
+                        let (s, _) = multispace0(s)?;
+                        read_pos = s;
+                    }
+                    Err(e) => {
+                        return Err(e); //raise every other error
+                    }
+                }
+            };
+            let s = read_pos;
             Ok((
                 s,
                 Self {
                     open_brace,
+                    params,
                     closing_brace,
                 },
             ))
+        }
+
+        pub fn params(&self) -> &[Parameter] {
+            self.params.as_ref()
+        }
+    }
+    #[derive(PartialEq, Eq, Debug)]
+    pub struct Parameter<'s> {
+        name: Ident<'s>,
+        colon: Span<'s>,
+        typ: Ident<'s>,
+        /// the `,` following the parameter, if it exists
+        comma: Option<Span<'s>>,
+    }
+
+    impl<'s> Parameter<'s> {
+        pub fn parse_span(s: Span<'s>) -> IResult<Span, Self> {
+            let (s, name) = Ident::parse_span(s)?;
+            let (s, _) = multispace0(s)?;
+            let (s, colon) = tag(":")(s)?;
+            let (s, _) = multispace0(s)?;
+            let (s, typ) = Ident::parse_span(s)?;
+            let (s, _) = multispace0(s)?;
+            let (s, comma) = opt(tag(","))(s)?;
+            let (s, _) = multispace0(s)?;
+            Ok((
+                s,
+                Self {
+                    name,
+                    colon,
+                    typ,
+                    comma,
+                },
+            ))
+        }
+
+        pub fn name(&self) -> &Ident<'s> {
+            &self.name
+        }
+
+        pub fn typ(&self) -> &Ident<'s> {
+            &self.typ
         }
     }
 
@@ -237,6 +313,28 @@ mod parser_combinator {
             let bs_function = bs_file.entries()[0].as_function().unwrap();
             assert_eq!("main", <&str>::from(bs_function.name()));
             assert_eq!("Nothing", <&str>::from(bs_function.return_type()));
+        }
+
+        #[test]
+        fn test_function_parameters() {
+            let input = dedent(
+                "
+                function f(a: U32, b: U32) ~> Nothing {
+                }",
+            );
+            let (_, bs_file) = BackSeatFile::parse_span(LocatedSpan::new(&input)).unwrap(); //parse(&input).unwrap();
+            assert_eq!(1, bs_file.entries().len());
+            let bs_function = bs_file.entries()[0].as_function().unwrap();
+            assert_eq!("f", <&str>::from(bs_function.name()));
+            assert_eq!("Nothing", <&str>::from(bs_function.return_type()));
+            let params = bs_function.parameters().params();
+            assert_eq!(2, params.len());
+            let param0 = &params[0];
+            assert_eq!("a", <&str>::from(param0.name()));
+            assert_eq!("U32", <&str>::from(param0.typ()));
+            let param1 = &params[1];
+            assert_eq!("b", <&str>::from(param1.name()));
+            assert_eq!("U32", <&str>::from(param1.typ()));
         }
 
         #[rstest]
