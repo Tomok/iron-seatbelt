@@ -5,7 +5,7 @@ mod parser_combinator {
             complete::{multispace0, multispace1},
             is_alphanumeric, is_newline, is_space,
         },
-        combinator::{eof, opt},
+        combinator::{all_consuming, eof, opt},
         error::{context, ContextError, Error, ErrorKind, ParseError, VerboseError},
         multi::many0,
         AsChar, IResult, InputTakeAtPosition,
@@ -25,8 +25,7 @@ mod parser_combinator {
         >(
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
-            let (s, entries) = context("File", many0(FileEntry::parse_span))(s)?;
-            let (s, _) = eof(s)?; //ensure everything was read
+            let (s, entries) = context("File", all_consuming(many0(FileEntry::parse_span)))(s)?;
             Ok((s, Self { entries }))
         }
     }
