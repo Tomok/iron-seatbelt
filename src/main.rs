@@ -271,7 +271,8 @@ mod parser_combinator {
     pub struct Ident<'s>(Span<'s>);
     impl<'s> Ident<'s> {
         pub fn parse_span(s: Span<'s>) -> IResult<Span, Self> {
-            let (s, ident) = take_while1(AsChar::is_alpha)(s)?; //todo: allow for numbers in idents
+            let (s, ident) = take_while1(AsChar::is_alphanum)(s)?;
+            //todo: check that ident does not start with a number
             Ok((s, Self(ident)))
         }
     }
