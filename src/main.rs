@@ -6,6 +6,7 @@ mod parser_combinator {
             complete::{multispace0, multispace1},
             is_alphanumeric, is_newline, is_space,
         },
+        combinator::{eof, opt},
         error::{Error, ErrorKind},
         multi::many0,
         AsChar, IResult, InputTakeAtPosition,
@@ -22,6 +23,7 @@ mod parser_combinator {
     impl<'s> BackSeatFile<'s> {
         pub fn parse_span(s: Span<'s>) -> IResult<Span, Self> {
             let (s, entries) = many0(FileEntry::parse_span)(s)?;
+            let (s, _) = eof(s)?; //ensure everything was read
             Ok((s, Self { entries }))
         }
     }
@@ -63,6 +65,7 @@ mod parser_combinator {
             matches!(self, Self::Import)
         }
 
+        #[must_use]
         pub fn as_function(&self) -> Option<&Function<'s>> {
             if let Self::Function(v) = self {
                 Some(v)
@@ -284,10 +287,13 @@ mod parser_combinator {
     }
 
     pub fn parse(input: &str) -> Result<BackSeatFile, ()> {
+        //todo: error type
         let input = LocatedSpan::new(input);
         match BackSeatFile::parse_span(input) {
             Ok((_, bs)) => Ok(bs),
-            Err(e) => todo!(),
+            Err(e) => {
+                todo!();
+            }
         }
     }
 
