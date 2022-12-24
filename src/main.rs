@@ -1,5 +1,4 @@
 mod parser_combinator {
-
     use nom::{
         bytes::complete::{tag, take_till, take_until, take_while, take_while1},
         character::{
@@ -7,7 +6,7 @@ mod parser_combinator {
             is_alphanumeric, is_newline, is_space,
         },
         combinator::{eof, opt},
-        error::{Error, ErrorKind},
+        error::{context, ContextError, Error, ErrorKind, ParseError, VerboseError},
         multi::many0,
         AsChar, IResult, InputTakeAtPosition,
     };
@@ -21,8 +20,12 @@ mod parser_combinator {
     }
 
     impl<'s> BackSeatFile<'s> {
-        pub fn parse_span(s: Span<'s>) -> IResult<Span, Self> {
-            let (s, entries) = many0(FileEntry::parse_span)(s)?;
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            let (s, entries) = context("File", many0(FileEntry::parse_span))(s)?;
             let (s, _) = eof(s)?; //ensure everything was read
             Ok((s, Self { entries }))
         }
@@ -41,7 +44,11 @@ mod parser_combinator {
     }
 
     impl<'s> FileEntry<'s> {
-        pub fn parse_span(s: Span<'s>) -> IResult<Span, Self> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
             //todo Import
             let (s, f) = Function::parse_span(s)?;
             Ok((s, Self::Function(f)))
@@ -102,7 +109,11 @@ mod parser_combinator {
             &self.code_block
         }
 
-        pub fn parse_span(s: Span<'s>) -> IResult<Span, Self> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
             let (s, _) = multispace0(s)?;
             let (s, function) = tag("function")(s)?;
             let (s, _) = multispace1(s)?;
@@ -145,7 +156,11 @@ mod parser_combinator {
     }
 
     impl<'s> Parameters<'s> {
-        pub fn parse_span(s: Span<'s>) -> IResult<Span, Self> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
             let (s, open_brace) = tag("(")(s)?;
             let mut params = Vec::new();
             let mut next_param_allowed = true; //checks if a parameter is allowed, i.e. it is the
@@ -169,7 +184,8 @@ mod parser_combinator {
                         if !next_param_allowed {
                             dbg!("No more paramenters allowed");
                             //todo: how to state that a `,` or a `)` were expected?
-                            return Err(nom::Err::Error(Error::new(input, ErrorKind::Tag)));
+                            //return Err(nom::Err::Error(Error::new(input, ErrorKind::Tag)));
+                            todo!("crashing ... need to figure out how to raise a usefull parameter instead");
                         }
                         let (s, param) = Parameter::parse_span(input)?;
                         next_param_allowed = param.comma.is_some();
@@ -178,7 +194,8 @@ mod parser_combinator {
                         read_pos = s;
                     }
                     Err(e) => {
-                        return Err(e); //raise every other error
+                        todo!("crashing ... need to figure out how to raise a usefull parameter instead");
+                        //return Err(e); //raise every other error
                     }
                 }
             };
@@ -207,7 +224,11 @@ mod parser_combinator {
     }
 
     impl<'s> Parameter<'s> {
-        pub fn parse_span(s: Span<'s>) -> IResult<Span, Self> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
             let (s, name) = Ident::parse_span(s)?;
             let (s, _) = multispace0(s)?;
             let (s, colon) = tag(":")(s)?;
@@ -253,7 +274,11 @@ mod parser_combinator {
             self.closed_curly_brace
         }
 
-        pub fn parse_span(s: Span<'s>) -> IResult<Span, Self> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
             let (s, open_curly_brace) = tag("{")(s)?;
             let (s, _) = multispace0(s)?;
             //todo replace with actual parsing
@@ -273,7 +298,11 @@ mod parser_combinator {
     #[derive(PartialEq, Eq, Debug)]
     pub struct Ident<'s>(Span<'s>);
     impl<'s> Ident<'s> {
-        pub fn parse_span(s: Span<'s>) -> IResult<Span, Self> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
             let (s, ident) = take_while1(AsChar::is_alphanum)(s)?;
             //todo: check that ident does not start with a number
             Ok((s, Self(ident)))
@@ -289,7 +318,7 @@ mod parser_combinator {
     pub fn parse(input: &str) -> Result<BackSeatFile, ()> {
         //todo: error type
         let input = LocatedSpan::new(input);
-        match BackSeatFile::parse_span(input) {
+        match BackSeatFile::parse_span::<VerboseError<LocatedSpan<&str>>>(input) {
             Ok((_, bs)) => Ok(bs),
             Err(e) => {
                 todo!();
@@ -302,6 +331,7 @@ mod parser_combinator {
         use std::fs::read_to_string;
 
         use super::*;
+        use nom::error::{convert_error, VerboseError};
         use textwrap::dedent;
 
         use rstest::*;
@@ -329,7 +359,8 @@ mod parser_combinator {
                 function f(a: U32, b: U32) ~> Nothing {
                 }",
             );
-            let (_, bs_file) = BackSeatFile::parse_span(LocatedSpan::new(&input)).unwrap(); //parse(&input).unwrap();
+            let (_, bs_file) =
+                BackSeatFile::parse_span::<VerboseError<_>>(LocatedSpan::new(&input)).unwrap(); //parse(&input).unwrap();
             assert_eq!(1, bs_file.entries().len());
             let bs_function = bs_file.entries()[0].as_function().unwrap();
             assert_eq!("f", <&str>::from(bs_function.name()));
@@ -424,7 +455,14 @@ mod parser_combinator {
         fn test_parse_tests_from_original_seatbelt_repo(#[case] testfile: &str) {
             let filename = format!("./res/tests/from_seatbelt/{}", testfile);
             let script = read_to_string(filename).unwrap();
-            let _bs_file = parse(&script).unwrap();
+            let input = LocatedSpan::new(script.as_str());
+            let result = BackSeatFile::parse_span::<VerboseError<_>>(input);
+            if let Err(e) = result {
+                //this should not happen, but let's generate a nice error message:
+                panic!("Parsing failed - error: {:#?}", e);
+                //                eprintln!("{}", convert_error(&input, e));
+            }
+
             // since this just tests that the file was parsed, there is no check whether it was
             // parsed correctly (yet)
         }
