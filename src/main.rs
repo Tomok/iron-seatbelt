@@ -101,10 +101,8 @@ mod parser_combinator {
         pub fn parse_span(s: Span<'s>) -> IResult<Span, Self> {
             let (s, _) = multispace0(s)?;
             let (s, function) = tag("function")(s)?;
-            dbg!(&function);
             let (s, _) = multispace1(s)?;
             let (s, name) = Ident::parse_span(s)?;
-            dbg!(&name);
             let (s, _) = multispace0(s)?;
             let (s, parameters) = Parameters::parse_span(s)?;
             let (s, _) = multispace0(s)?;
