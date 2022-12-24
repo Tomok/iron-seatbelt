@@ -321,7 +321,9 @@ mod parser_combinator {
         fn test_parse_tests_from_original_seatbelt_repo(#[case] testfile: &str) {
             let filename = format!("./res/tests/from_seatbelt/{}", testfile);
             let script = read_to_string(filename).unwrap();
-            let bs_file = parse(&script).unwrap();
+            let _bs_file = parse(&script).unwrap();
+            // since this just tests that the file was parsed, there is no check whether it was
+            // parsed correctly (yet)
         }
     }
 }
