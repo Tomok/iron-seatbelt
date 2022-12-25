@@ -1,10 +1,12 @@
 pub mod parser_combinator {
     use nom::{
+        branch::alt,
         bytes::complete::{tag, take_until, take_while1},
         character::complete::{multispace0, multispace1},
-        combinator::{all_consuming, opt},
+        combinator::{all_consuming, map, opt},
         error::{context, ContextError, Error, ErrorKind, ParseError, VerboseError},
-        multi::many0,
+        multi::{many0, many1},
+        sequence::tuple,
         AsChar, IResult,
     };
     use nom_locate::LocatedSpan;
@@ -22,7 +24,10 @@ pub mod parser_combinator {
         >(
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
-            let (s, entries) = context("File", all_consuming(many0(FileEntry::parse_span)))(s)?;
+            let (s, (entries, _whitespace)) = context(
+                "File",
+                all_consuming(tuple((many0(FileEntry::parse_span), multispace0))),
+            )(s)?;
             Ok((s, Self { entries }))
         }
     }
@@ -35,7 +40,7 @@ pub mod parser_combinator {
 
     #[derive(PartialEq, Eq, Debug)]
     pub enum FileEntry<'s> {
-        Import, //todo
+        Import(Import<'s>),
         Function(Function<'s>),
     }
 
@@ -45,19 +50,12 @@ pub mod parser_combinator {
         >(
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
-            //todo Import
-            let (s, f) = Function::parse_span(s)?;
-            Ok((s, Self::Function(f)))
-        }
-    }
-
-    impl<'s> FileEntry<'s> {
-        /// Returns `true` if the file entry is [`Function`].
-        ///
-        /// [`Function`]: FileEntry::Function
-        #[must_use]
-        pub fn is_function(&self) -> bool {
-            matches!(self, Self::Function(..))
+            let (s, res) = alt((
+                map(Import::parse_span, Self::Import),
+                map(Function::parse_span, Self::Function),
+            ))(s)?;
+            dbg!((&s, &res));
+            Ok((s, res))
         }
 
         /// Returns `true` if the file entry is [`Import`].
@@ -65,7 +63,24 @@ pub mod parser_combinator {
         /// [`Import`]: FileEntry::Import
         #[must_use]
         pub fn is_import(&self) -> bool {
-            matches!(self, Self::Import)
+            matches!(self, Self::Import(..))
+        }
+
+        #[must_use]
+        pub fn as_import(&self) -> Option<&Import<'s>> {
+            if let Self::Import(v) = self {
+                Some(v)
+            } else {
+                None
+            }
+        }
+
+        /// Returns `true` if the file entry is [`Function`].
+        ///
+        /// [`Function`]: FileEntry::Function
+        #[must_use]
+        pub fn is_function(&self) -> bool {
+            matches!(self, Self::Function(..))
         }
 
         #[must_use]
@@ -75,6 +90,55 @@ pub mod parser_combinator {
             } else {
                 None
             }
+        }
+    }
+    #[derive(PartialEq, Eq, Debug)]
+    pub struct Import<'s> {
+        import: Span<'s>,
+        segments: Vec<ImportSegment<'s>>,
+        semicomoln: Span<'s>,
+    }
+
+    impl<'s> Import<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            let (s, _) = multispace0(s)?;
+            let (s, import) = tag("import")(s)?;
+            let (s, _) = multispace1(s)?;
+            let (s, segments) = many1(ImportSegment::parse_span)(s)?; //todo: check correct usage
+                                                                      //of dots in import
+                                                                      //statements
+            let (s, _) = multispace0(s)?;
+            let (s, semicomoln) = tag(";")(s)?;
+            Ok((
+                s,
+                Self {
+                    import,
+                    segments,
+                    semicomoln,
+                },
+            ))
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug)]
+    pub struct ImportSegment<'s> {
+        ident: Ident<'s>,
+        dot: Option<Span<'s>>,
+    }
+
+    impl<'s> ImportSegment<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            let (s, ident) = Ident::parse_span(s)?;
+            let (s, dot) = opt(tag("."))(s)?;
+            Ok((s, Self { ident, dot }))
         }
     }
 
