@@ -538,10 +538,109 @@ pub mod parser_combinator {
         }
     }
 
-    /*#[derive(PartialEq, Eq, Debug)]
+    #[derive(PartialEq, Eq, Debug)]
     pub struct ForLoop<'s> {
-        //todo
-    }*/
+        for_token: Span<'s>,
+        params: ForLoopKind<'s>,
+        loop_block: CodeBlock<'s>,
+    }
+
+    impl<'s> ForLoop<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            let (s, for_token) = tag("for")(s)?;
+            let (s, _) = multispace1(s)?;
+            let (s, params) = ForLoopKind::parse_span(s)?;
+            let (s, _) = multispace0(s)?;
+            let (s, loop_block) = CodeBlock::parse_span(s)?;
+            Ok((
+                s,
+                Self {
+                    for_token,
+                    params,
+                    loop_block,
+                },
+            ))
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug)]
+    pub enum ForLoopKind<'s> {
+        /// for loop with `()` around the parameters
+        WithBraces {
+            open_brace: Span<'s>,
+            params: ForLoopParams<'s>,
+            closing_brace: Span<'s>,
+        },
+        WithoutBraces(ForLoopParams<'s>),
+    }
+
+    impl<'s> ForLoopKind<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            alt((
+                map(
+                    tuple((
+                        terminated(tag("("), multispace0),
+                        terminated(ForLoopParams::parse_span, multispace0),
+                        terminated(tag(")"), multispace0),
+                    )),
+                    |(open_brace, params, closing_brace)| Self::WithBraces {
+                        open_brace,
+                        params,
+                        closing_brace,
+                    },
+                ),
+                map(
+                    delimited(multispace0, ForLoopParams::parse_span, multispace0),
+                    Self::WithoutBraces,
+                ),
+            ))(s)
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug)]
+    pub struct ForLoopParams<'s> {
+        start_assignment: Option<LetStatement<'s>>,
+        semicolon1: Span<'s>,
+        condition: Option<Expression<'s>>,
+        semicolon2: Span<'s>,
+        increment_expr: Option<Expression<'s>>,
+    }
+
+    impl<'s> ForLoopParams<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            let (s, start_assignment) = opt(LetStatement::parse_span)(s)?;
+            let (s, _) = multispace0(s)?;
+            let (s, semicolon1) = tag(";")(s)?;
+            let (s, _) = multispace0(s)?;
+            let (s, condition) = opt(Expression::parse_span)(s)?;
+            let (s, _) = multispace0(s)?;
+            let (s, semicolon2) = tag(";")(s)?;
+            let (s, _) = multispace0(s)?;
+            let (s, increment_expr) = opt(Expression::parse_span)(s)?;
+            Ok((
+                s,
+                Self {
+                    start_assignment,
+                    semicolon1,
+                    condition,
+                    semicolon2,
+                    increment_expr,
+                },
+            ))
+        }
+    }
 
     #[derive(PartialEq, Eq, Debug)]
     pub enum Expression<'s> {
