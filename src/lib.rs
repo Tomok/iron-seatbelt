@@ -2,14 +2,16 @@ pub mod parser_combinator {
     use nom::{
         branch::alt,
         bytes::complete::{tag, take_until, take_while1},
-        character::complete::{multispace0, multispace1},
+        character::complete::{anychar, digit1, hex_digit1, multispace0, multispace1, one_of},
         combinator::{all_consuming, map, opt},
         error::{context, ContextError, Error, ErrorKind, ParseError, VerboseError},
         multi::{many0, many1},
-        sequence::tuple,
+        sequence::{pair, preceded, separated_pair, terminated, tuple},
         AsChar, IResult,
     };
     use nom_locate::LocatedSpan;
+
+    use nom::character::complete::char as char_tag; //redefine to avoid confusion with char type
 
     type Span<'a> = LocatedSpan<&'a str>;
 
@@ -352,6 +354,438 @@ pub mod parser_combinator {
                     closed_curly_brace,
                 },
             ))
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug)]
+    pub enum Statement<'s> {
+        LetStatement(LetStatement<'s>),
+        IfStatement(IfStatement<'s>),
+        //ForLoop(ForLoop<'s>),
+        CodeBlock(CodeBlock<'s>),
+        Expression(Expression<'s>),
+        //InlineBssembly(InlineBssembly<'s>),
+    }
+
+    impl<'s> Statement<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            alt((
+                map(LetStatement::parse_span, Self::LetStatement),
+                map(IfStatement::parse_span, Self::IfStatement),
+                //todo map(ForLoop::parse_span, Self::ForLoop),
+                map(CodeBlock::parse_span, Self::CodeBlock),
+                map(Expression::parse_span, Self::Expression),
+                //todo map(InlineBssembly::parse_span, Self::InlineBssembly),
+            ))(s)
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug)]
+    pub struct LetStatement<'s> {
+        let_token: Span<'s>,
+        variable_name: Ident<'s>,
+        colon: Span<'s>,
+        mutable: Option<Span<'s>>,
+        typ: Ident<'s>,
+        equals: Span<'s>,
+        assignment: Expression<'s>,
+    }
+
+    impl<'s> LetStatement<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            let (s, let_token) = tag("let")(s)?;
+            let (s, _) = multispace1(s)?;
+            let (s, variable_name) = Ident::parse_span(s)?;
+            let (s, _) = multispace0(s)?;
+            let (s, colon) = tag(":")(s)?;
+            let (s, _) = multispace0(s)?;
+            let (s, mutable) = opt(tag("mutable"))(s)?;
+            let (s, _) = multispace0(s)?;
+            let (s, typ) = Ident::parse_span(s)?;
+            let (s, _) = multispace0(s)?;
+            let (s, equals) = tag("=")(s)?;
+            let (s, _) = multispace0(s)?;
+            let (s, assignment) = Expression::parse_span(s)?;
+            Ok((
+                s,
+                Self {
+                    let_token,
+                    variable_name,
+                    colon,
+                    mutable,
+                    typ,
+                    equals,
+                    assignment,
+                },
+            ))
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug)]
+    pub struct IfStatement<'s> {
+        if_token: Span<'s>,
+        condition: Expression<'s>,
+        then_block: CodeBlock<'s>,
+        // todo is else mandatory??
+        else_token: Span<'s>,
+        else_type: ElseType<'s>,
+    }
+
+    impl<'s> IfStatement<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            let (s, if_token) = tag("if")(s)?;
+            let (s, _) = multispace1(s)?;
+            let (s, condition) = Expression::parse_span(s)?;
+            let (s, _) = multispace0(s)?;
+            let (s, then_block) = CodeBlock::parse_span(s)?;
+            let (s, _) = multispace0(s)?;
+            let (s, else_token) = tag("else")(s)?;
+            let (s, _) = multispace0(s)?;
+            let (s, else_type) = ElseType::parse_span(s)?;
+            Ok((
+                s,
+                Self {
+                    if_token,
+                    condition,
+                    then_block,
+                    else_token,
+                    else_type,
+                },
+            ))
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug)]
+    pub enum ElseType<'s> {
+        /// just a CodeBlock (`{...}`)
+        Normal(CodeBlock<'s>),
+        /// an else if statement
+        ElseIf(Box<IfStatement<'s>>),
+    }
+
+    impl<'s> ElseType<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            alt((
+                map(CodeBlock::parse_span, Self::Normal),
+                map(
+                    preceded(
+                        multispace1, //there needs to be a whitespace between `else` and the
+                        //following `if`
+                        IfStatement::parse_span,
+                    ),
+                    |stmt| Self::ElseIf(Box::new(stmt)),
+                ),
+            ))(s)
+        }
+    }
+
+    /*#[derive(PartialEq, Eq, Debug)]
+    pub struct ForLoop<'s> {
+        //todo
+    }*/
+
+    #[derive(PartialEq, Eq, Debug)]
+    pub enum Expression<'s> {
+        IntLiteral(IntLiteral<'s>),
+        CharLiteral(CharLiteral<'s>),
+        /// an Ident, could be a variable_name or a function name
+        Ident(Ident<'s>),
+        FunctionCall(FunctionCall<'s>),
+    }
+
+    impl<'s> Expression<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            alt((
+                map(IntLiteral::parse_span, Self::IntLiteral),
+                map(CharLiteral::parse_span, Self::CharLiteral),
+                map(FunctionCall::parse_span, Self::FunctionCall),
+                map(Ident::parse_span, Self::Ident),
+            ))(s)
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug)]
+    pub struct FunctionCall<'s> {
+        function_expr: Box<Expression<'s>>, //does this make sense? is there a more specific type,
+        //that could be used?
+        open_brace: Span<'s>,
+        parameters: Vec<FunctionCallParameter<'s>>,
+        closing_brace: Span<'s>,
+    }
+
+    impl<'s> FunctionCall<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            let (s, expr) = Expression::parse_span(s)?;
+            let function_expr = Box::new(expr);
+            let (s, open_brace) = tag("(")(s)?;
+            let (s, _) = multispace0(s)?;
+            let (s, parameters) = many0(FunctionCallParameter::parse_span)(s)?;
+            let (s, closing_brace) = tag(")")(s)?;
+            let (s, _) = multispace0(s)?;
+            Ok((
+                s,
+                Self {
+                    function_expr,
+                    open_brace,
+                    parameters,
+                    closing_brace,
+                },
+            ))
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug)]
+    pub struct FunctionCallParameter<'s> {
+        expression: Box<Expression<'s>>,
+        comma: Option<Span<'s>>,
+    }
+
+    impl<'s> FunctionCallParameter<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            terminated(
+                map(
+                    separated_pair(Expression::parse_span, multispace0, opt(tag(","))),
+                    |(expr, comma)| Self {
+                        expression: Box::new(expr),
+                        comma,
+                    },
+                ),
+                multispace0,
+            )(s)
+        }
+    }
+
+    /*#[derive(PartialEq, Eq, Debug)]
+    pub struct InlineBssembly<'s> {
+        //todo
+    }*/
+
+    #[derive(PartialEq, Eq, Debug)]
+    pub enum IntLiteral<'s> {
+        ///no identifier -> Value is decimal
+        Dec {
+            digit_segments: Vec<DigitSegment<'s>>,
+        },
+        /// `0x` -> value is hexadecimal
+        Hex {
+            base_identifier: Span<'s>,
+            digit_segments: Vec<DigitSegment<'s>>,
+        },
+        /// `0xb` -> value is binary
+        Bin {
+            base_identifier: Span<'s>,
+            digit_segments: Vec<DigitSegment<'s>>,
+        },
+        /// `0o` -> value is octal
+        Oct {
+            base_identifier: Span<'s>,
+            digit_segments: Vec<DigitSegment<'s>>,
+        },
+    }
+
+    impl<'s> IntLiteral<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            alt((
+                map(
+                    pair(tag("0x"), many1(DigitSegment::parse_span_hex)),
+                    |(base_identifier, digit_segments)| Self::Hex {
+                        base_identifier,
+                        digit_segments,
+                    },
+                ),
+                map(
+                    pair(tag("0b"), many1(DigitSegment::parse_span_bin)),
+                    |(base_identifier, digit_segments)| Self::Bin {
+                        base_identifier,
+                        digit_segments,
+                    },
+                ),
+                map(
+                    pair(tag("0o"), many1(DigitSegment::parse_span_oct)),
+                    |(base_identifier, digit_segments)| Self::Oct {
+                        base_identifier,
+                        digit_segments,
+                    },
+                ),
+                map(many1(DigitSegment::parse_span_dec), |digit_segments| {
+                    Self::Dec { digit_segments }
+                }),
+            ))(s)
+        }
+
+        pub fn base_identifier(&self) -> Option<&Span<'s>> {
+            match self {
+                IntLiteral::Dec { digit_segments } => None,
+                IntLiteral::Hex {
+                    base_identifier,
+                    digit_segments,
+                } => Some(base_identifier),
+                IntLiteral::Bin {
+                    base_identifier,
+                    digit_segments,
+                } => Some(base_identifier),
+                IntLiteral::Oct {
+                    base_identifier,
+                    digit_segments,
+                } => Some(base_identifier),
+            }
+        }
+
+        pub fn digit_segments(&self) -> &[DigitSegment] {
+            match self {
+                IntLiteral::Dec { digit_segments } => digit_segments,
+                IntLiteral::Hex {
+                    base_identifier,
+                    digit_segments,
+                } => digit_segments,
+                IntLiteral::Bin {
+                    base_identifier,
+                    digit_segments,
+                } => digit_segments,
+                IntLiteral::Oct {
+                    base_identifier,
+                    digit_segments,
+                } => digit_segments,
+            }
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug)]
+    pub struct DigitSegment<'s> {
+        digits: Span<'s>,
+        underscore: Option<Span<'s>>,
+    }
+
+    impl<'s> DigitSegment<'s> {
+        pub fn parse_span_hex<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            map(pair(hex_digit1, opt(tag("_"))), |(digits, underscore)| {
+                Self { digits, underscore }
+            })(s)
+        }
+
+        pub fn parse_span_bin<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            fn is_bin(c: char) -> bool {
+                "01".contains(c)
+            }
+            map(
+                pair(take_while1(is_bin), opt(tag("_"))),
+                |(digits, underscore)| Self { digits, underscore },
+            )(s)
+        }
+
+        pub fn parse_span_oct<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            fn is_bin(c: char) -> bool {
+                "01234567".contains(c)
+            }
+            map(
+                pair(take_while1(is_bin), opt(tag("_"))),
+                |(digits, underscore)| Self { digits, underscore },
+            )(s)
+        }
+
+        pub fn parse_span_dec<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            map(pair(digit1, opt(tag("_"))), |(digits, underscore)| Self {
+                digits,
+                underscore,
+            })(s)
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug)]
+    pub struct CharLiteral<'s> {
+        opening_apostrophe: Span<'s>,
+        character_definition: SingleCharacterDefinition,
+        closing_apostrophe: Span<'s>,
+    }
+
+    impl<'s> CharLiteral<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            map(
+                tuple((tag("'"), SingleCharacterDefinition::parse_span, tag("'"))),
+                |(opening_apostrophe, character_definition, closing_apostrophe)| Self {
+                    opening_apostrophe,
+                    character_definition,
+                    closing_apostrophe,
+                },
+            )(s)
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug)]
+    pub enum SingleCharacterDefinition {
+        /// a single, not escaped character
+        SimpleChar(char),
+        /// a character prefixed with a `\` to be converted into the correct character
+        EscapedChar(char),
+    }
+
+    impl SingleCharacterDefinition {
+        pub fn parse_span<
+            's,
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            alt((
+                map(
+                    //todo: convert one_of parameters into constant
+                    preceded(char_tag('\\'), one_of("t\\nvfr0")),
+                    Self::EscapedChar,
+                ),
+                map(anychar, Self::SimpleChar),
+            ))(s)
         }
     }
 
