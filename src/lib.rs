@@ -1,16 +1,13 @@
-mod parser_combinator {
+pub mod parser_combinator {
     use nom::{
-        bytes::complete::{tag, take_till, take_until, take_while, take_while1},
-        character::{
-            complete::{multispace0, multispace1},
-            is_alphanumeric, is_newline, is_space,
-        },
-        combinator::{all_consuming, eof, opt},
+        bytes::complete::{tag, take_until, take_while1},
+        character::complete::{multispace0, multispace1},
+        combinator::{all_consuming, opt},
         error::{context, ContextError, Error, ErrorKind, ParseError, VerboseError},
         multi::many0,
-        AsChar, IResult, InputTakeAtPosition,
+        AsChar, IResult,
     };
-    use nom_locate::{position, LocatedSpan};
+    use nom_locate::LocatedSpan;
 
     type Span<'a> = LocatedSpan<&'a str>;
 
@@ -330,7 +327,7 @@ mod parser_combinator {
         use std::fs::read_to_string;
 
         use super::*;
-        use nom::error::{convert_error, VerboseError};
+        use nom::error::VerboseError;
         use textwrap::dedent;
 
         use rstest::*;
@@ -466,8 +463,4 @@ mod parser_combinator {
             // parsed correctly (yet)
         }
     }
-}
-
-fn main() {
-    println!("Hello, world!");
 }
