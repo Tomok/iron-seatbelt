@@ -323,7 +323,7 @@ pub mod parser_combinator {
     #[derive(PartialEq, Eq, Debug)]
     pub struct CodeBlock<'s> {
         open_curly_brace: Span<'s>,
-        //todo
+        statements: Vec<Statement<'s>>,
         closed_curly_brace: Span<'s>,
     }
 
@@ -343,14 +343,13 @@ pub mod parser_combinator {
         ) -> IResult<Span, Self, E> {
             let (s, open_curly_brace) = tag("{")(s)?;
             let (s, _) = multispace0(s)?;
-            //todo replace with actual parsing
-            let (s, _) = take_until("}")(s)?;
-            let (s, _) = multispace0(s)?;
+            let (s, statements) = many0(terminated(Statement::parse_span, multispace0))(s)?;
             let (s, closed_curly_brace) = tag("}")(s)?;
             Ok((
                 s,
                 Self {
                     open_curly_brace,
+                    statements,
                     closed_curly_brace,
                 },
             ))
