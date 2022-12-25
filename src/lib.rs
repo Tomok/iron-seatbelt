@@ -1,12 +1,12 @@
 pub mod parser_combinator {
     use nom::{
         branch::alt,
-        bytes::complete::{tag, take_until, take_while1},
+        bytes::complete::{tag, take_while1},
         character::complete::{anychar, digit1, hex_digit1, multispace0, multispace1, one_of},
         combinator::{all_consuming, map, opt},
         error::{context, ContextError, Error, ErrorKind, ParseError, VerboseError},
         multi::{many0, many1},
-        sequence::{pair, preceded, separated_pair, terminated, tuple},
+        sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
         AsChar, IResult,
     };
     use nom_locate::LocatedSpan;
