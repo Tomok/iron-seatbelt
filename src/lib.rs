@@ -358,11 +358,11 @@ pub mod parser_combinator {
 
     #[derive(PartialEq, Eq, Debug)]
     pub enum Statement<'s> {
-        LetStatement(LetStatement<'s>),
+        LetStatement(LetStatementWithSemicolon<'s>),
         IfStatement(IfStatement<'s>),
-        //ForLoop(ForLoop<'s>),
+        ForLoop(ForLoop<'s>),
         CodeBlock(CodeBlock<'s>),
-        Expression(Expression<'s>),
+        Expression(ExpressionWithSemicolon<'s>),
         //InlineBssembly(InlineBssembly<'s>),
     }
 
@@ -373,13 +373,35 @@ pub mod parser_combinator {
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
             alt((
-                map(LetStatement::parse_span, Self::LetStatement),
+                map(LetStatementWithSemicolon::parse_span, Self::LetStatement),
                 map(IfStatement::parse_span, Self::IfStatement),
-                //todo map(ForLoop::parse_span, Self::ForLoop),
+                map(ForLoop::parse_span, Self::ForLoop),
                 map(CodeBlock::parse_span, Self::CodeBlock),
-                map(Expression::parse_span, Self::Expression),
+                map(ExpressionWithSemicolon::parse_span, Self::Expression),
                 //todo map(InlineBssembly::parse_span, Self::InlineBssembly),
             ))(s)
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug)]
+    pub struct ExpressionWithSemicolon<'s> {
+        expression: Option<Expression<'s>>,
+        semicolon: Span<'s>,
+    }
+
+    impl<'s> ExpressionWithSemicolon<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            map(
+                separated_pair(opt(Expression::parse_span), multispace0, tag(";")),
+                |(expression, semicolon)| Self {
+                    expression,
+                    semicolon,
+                },
+            )(s)
         }
     }
 
@@ -425,6 +447,28 @@ pub mod parser_combinator {
                     assignment,
                 },
             ))
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug)]
+    pub struct LetStatementWithSemicolon<'s> {
+        let_statment: LetStatement<'s>,
+        semicolon: Span<'s>,
+    }
+
+    impl<'s> LetStatementWithSemicolon<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            map(
+                separated_pair(LetStatement::parse_span, multispace0, tag(";")),
+                |(let_statment, semicolon)| Self {
+                    let_statment,
+                    semicolon,
+                },
+            )(s)
         }
     }
 
