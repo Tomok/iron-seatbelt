@@ -647,35 +647,32 @@ pub mod parser_combinator {
 
         pub fn base_identifier(&self) -> Option<&Span<'s>> {
             match self {
-                IntLiteral::Dec { digit_segments } => None,
+                IntLiteral::Dec { .. } => None,
                 IntLiteral::Hex {
-                    base_identifier,
-                    digit_segments,
-                } => Some(base_identifier),
-                IntLiteral::Bin {
-                    base_identifier,
-                    digit_segments,
-                } => Some(base_identifier),
-                IntLiteral::Oct {
-                    base_identifier,
-                    digit_segments,
+                    base_identifier, ..
+                }
+                | IntLiteral::Bin {
+                    base_identifier, ..
+                }
+                | IntLiteral::Oct {
+                    base_identifier, ..
                 } => Some(base_identifier),
             }
         }
 
         pub fn digit_segments(&self) -> &[DigitSegment] {
             match self {
-                IntLiteral::Dec { digit_segments } => digit_segments,
-                IntLiteral::Hex {
-                    base_identifier,
+                IntLiteral::Dec { digit_segments }
+                | IntLiteral::Hex {
+                    base_identifier: _,
                     digit_segments,
-                } => digit_segments,
-                IntLiteral::Bin {
-                    base_identifier,
+                }
+                | IntLiteral::Bin {
+                    base_identifier: _,
                     digit_segments,
-                } => digit_segments,
-                IntLiteral::Oct {
-                    base_identifier,
+                }
+                | IntLiteral::Oct {
+                    base_identifier: _,
                     digit_segments,
                 } => digit_segments,
             }
