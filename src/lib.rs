@@ -1321,13 +1321,16 @@ pub mod parser_combinator {
 
     #[derive(PartialEq, Eq, Debug, Clone)]
     pub struct Ident<'s>(Span<'s>);
+    fn is_ident_char(c: char) -> bool {
+        c == '_' || AsChar::is_alphanum(c)
+    }
     impl<'s> Ident<'s> {
         pub fn parse_span<
             E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
         >(
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
-            let (s, ident) = take_while1(AsChar::is_alphanum)(s)?;
+            let (s, ident) = take_while1(is_ident_char)(s)?;
             //todo: check that ident does not start with a number
             //
             //check that ident is not a reserved word
