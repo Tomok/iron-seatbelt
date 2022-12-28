@@ -490,13 +490,13 @@ pub mod parser_combinator {
         ) -> IResult<Span, Self, E> {
             let (s, if_token) = tag("if")(s)?;
             let (s, _) = multispace1(s)?;
-            let (s, condition) = Expression::parse_span(s)?;
+            let (s, condition) = Expression::parse_span(s).map_err(nom_err2failure)?;
             let (s, _) = multispace0(s)?;
-            let (s, then_block) = CodeBlock::parse_span(s)?;
+            let (s, then_block) = CodeBlock::parse_span(s).map_err(nom_err2failure)?;
             let (s, _) = multispace0(s)?;
-            let (s, else_token) = tag("else")(s)?;
+            let (s, else_token) = tag("else")(s).map_err(nom_err2failure)?;
             let (s, _) = multispace0(s)?;
-            let (s, else_type) = ElseType::parse_span(s)?;
+            let (s, else_type) = ElseType::parse_span(s).map_err(nom_err2failure)?;
             Ok((
                 s,
                 Self {
@@ -553,9 +553,9 @@ pub mod parser_combinator {
         ) -> IResult<Span, Self, E> {
             let (s, for_token) = tag("for")(s)?;
             let (s, _) = multispace1(s)?;
-            let (s, params) = ForLoopKind::parse_span(s)?;
+            let (s, params) = ForLoopKind::parse_span(s).map_err(nom_err2failure)?;
             let (s, _) = multispace0(s)?;
-            let (s, loop_block) = CodeBlock::parse_span(s)?;
+            let (s, loop_block) = CodeBlock::parse_span(s).map_err(nom_err2failure)?;
             Ok((
                 s,
                 Self {
@@ -956,6 +956,13 @@ pub mod parser_combinator {
             Err(e) => {
                 todo!();
             }
+        }
+    }
+
+    fn nom_err2failure<E>(err: nom::Err<E>) -> nom::Err<E> {
+        match err {
+            nom::Err::Error(e) => nom::Err::Failure(e),
+            _ => err,
         }
     }
 
