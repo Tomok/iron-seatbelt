@@ -730,7 +730,7 @@ pub mod parser_combinator {
         //todo
     }*/
 
-    #[derive(PartialEq, Eq, Debug)]
+    #[derive(PartialEq, Eq, Debug, Clone)]
     pub enum IntLiteral<'s> {
         ///no identifier -> Value is decimal
         Dec {
@@ -821,7 +821,7 @@ pub mod parser_combinator {
         }
     }
 
-    #[derive(PartialEq, Eq, Debug)]
+    #[derive(PartialEq, Eq, Debug, Clone)]
     pub struct DigitSegment<'s> {
         digits: Span<'s>,
         underscore: Option<Span<'s>>,
@@ -878,7 +878,7 @@ pub mod parser_combinator {
         }
     }
 
-    #[derive(PartialEq, Eq, Debug)]
+    #[derive(PartialEq, Eq, Debug, Clone)]
     pub struct CharLiteral<'s> {
         opening_apostrophe: Span<'s>,
         character_definition: SingleCharacterDefinition,
@@ -902,7 +902,7 @@ pub mod parser_combinator {
         }
     }
 
-    #[derive(PartialEq, Eq, Debug)]
+    #[derive(PartialEq, Eq, Debug, Clone)]
     pub enum SingleCharacterDefinition {
         /// a single, not escaped character
         SimpleChar(char),
@@ -928,7 +928,7 @@ pub mod parser_combinator {
         }
     }
 
-    #[derive(PartialEq, Eq, Debug)]
+    #[derive(PartialEq, Eq, Debug, Clone)]
     pub struct Ident<'s>(Span<'s>);
     impl<'s> Ident<'s> {
         pub fn parse_span<
