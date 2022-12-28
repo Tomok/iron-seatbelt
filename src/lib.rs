@@ -726,13 +726,16 @@ pub mod parser_combinator {
         >(
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
-            alt((
-                map(IntLiteral::parse_span, Self::IntLiteral),
-                map(CharLiteral::parse_span, Self::CharLiteral),
-                map(BracesTokens::parse_span, Self::Braces),
-                map(OperatorToken::parse_span, Self::Operator),
-                map(Ident::parse_span, Self::Ident),
-            ))(s)
+            terminated(
+                alt((
+                    map(IntLiteral::parse_span, Self::IntLiteral),
+                    map(CharLiteral::parse_span, Self::CharLiteral),
+                    map(BracesTokens::parse_span, Self::Braces),
+                    map(OperatorToken::parse_span, Self::Operator),
+                    map(Ident::parse_span, Self::Ident),
+                )),
+                multispace0,
+            )(s)
         }
 
         fn as_operator(&self) -> Option<&OperatorToken<'s>> {
