@@ -643,10 +643,11 @@ pub mod parser_combinator {
         }
     }
 
-    #[derive(PartialEq, Eq, Debug)]
+    #[derive(PartialEq, Eq, Debug, Clone)]
     pub enum Expression<'s> {
         IntLiteral(IntLiteral<'s>),
         CharLiteral(CharLiteral<'s>),
+        BinaryOperator(BinaryOperator<'s>),
         /// an Ident, could be a variable_name or a function name
         Ident(Ident<'s>),
         FunctionCall(FunctionCall<'s>),
@@ -689,9 +690,20 @@ pub mod parser_combinator {
                             FunctionCall::from_expr_and_braces(function_expr_tokens, maybe_params)?;
                         return Ok(Expression::FunctionCall(call));
                     }
-                    todo!()
+                }
+
+                if let Some(op) = BinaryOperator::from_tokens(values)? {
+                    return Ok(Expression::BinaryOperator(op));
                 }
                 todo!()
+            }
+        }
+
+        pub fn as_ident(&self) -> Option<&Ident<'s>> {
+            if let Self::Ident(v) = self {
+                Some(v)
+            } else {
+                None
             }
         }
     }
@@ -781,7 +793,7 @@ pub mod parser_combinator {
         }
     }
     #[derive(PartialEq, Eq, Debug, Clone)]
-    enum OperatorToken<'s> {
+    pub enum OperatorToken<'s> {
         Add(Span<'s>),
         Sub(Span<'s>),
         Mul(Span<'s>),
@@ -800,6 +812,31 @@ pub mod parser_combinator {
         Gt(Span<'s>),
 
         Comma(Span<'s>),
+    }
+
+    impl<'s> PartialOrd for OperatorToken<'s> {
+        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+            const fn operator_to_bind_strength(o: &OperatorToken<'_>) -> u8 {
+                match o {
+                    OperatorToken::Mul(_) => 4,
+                    OperatorToken::Div(_) => 4,
+                    OperatorToken::Mod(_) => 4,
+                    OperatorToken::Add(_) => 3,
+                    OperatorToken::Sub(_) => 3,
+                    OperatorToken::And(_) => 2,
+                    OperatorToken::Or(_) => 2,
+                    OperatorToken::Eq(_) => 1,
+                    OperatorToken::Neq(_) => 1,
+                    OperatorToken::Le(_) => 1,
+                    OperatorToken::Ge(_) => 1,
+                    OperatorToken::Lt(_) => 1,
+                    OperatorToken::Gt(_) => 1,
+                    OperatorToken::Comma(_) => 0,
+                }
+            }
+
+            operator_to_bind_strength(self).partial_cmp(&operator_to_bind_strength(other))
+        }
     }
 
     impl<'s> OperatorToken<'s> {
@@ -827,7 +864,7 @@ pub mod parser_combinator {
         }
 
         #[must_use]
-        fn span<'a>(&'a self) -> &'a Span<'s> {
+        pub fn span<'a>(&'a self) -> &'a Span<'s> {
             match self {
                 OperatorToken::Add(s)
                 | OperatorToken::Sub(s)
@@ -850,7 +887,7 @@ pub mod parser_combinator {
         ///
         /// [`Add`]: OperatorToken::Add
         #[must_use]
-        fn is_add(&self) -> bool {
+        pub fn is_add(&self) -> bool {
             matches!(self, Self::Add(..))
         }
 
@@ -858,7 +895,7 @@ pub mod parser_combinator {
         ///
         /// [`Sub`]: OperatorToken::Sub
         #[must_use]
-        fn is_sub(&self) -> bool {
+        pub fn is_sub(&self) -> bool {
             matches!(self, Self::Sub(..))
         }
 
@@ -866,7 +903,7 @@ pub mod parser_combinator {
         ///
         /// [`Mul`]: OperatorToken::Mul
         #[must_use]
-        fn is_mul(&self) -> bool {
+        pub fn is_mul(&self) -> bool {
             matches!(self, Self::Mul(..))
         }
 
@@ -874,7 +911,7 @@ pub mod parser_combinator {
         ///
         /// [`Div`]: OperatorToken::Div
         #[must_use]
-        fn is_div(&self) -> bool {
+        pub fn is_div(&self) -> bool {
             matches!(self, Self::Div(..))
         }
 
@@ -882,7 +919,7 @@ pub mod parser_combinator {
         ///
         /// [`Mod`]: OperatorToken::Mod
         #[must_use]
-        fn is_mod(&self) -> bool {
+        pub fn is_mod(&self) -> bool {
             matches!(self, Self::Mod(..))
         }
 
@@ -890,7 +927,7 @@ pub mod parser_combinator {
         ///
         /// [`Or`]: OperatorToken::Or
         #[must_use]
-        fn is_or(&self) -> bool {
+        pub fn is_or(&self) -> bool {
             matches!(self, Self::Or(..))
         }
 
@@ -898,7 +935,7 @@ pub mod parser_combinator {
         ///
         /// [`Eq`]: OperatorToken::Eq
         #[must_use]
-        fn is_eq(&self) -> bool {
+        pub fn is_eq(&self) -> bool {
             matches!(self, Self::Eq(..))
         }
 
@@ -906,7 +943,7 @@ pub mod parser_combinator {
         ///
         /// [`Neq`]: OperatorToken::Neq
         #[must_use]
-        fn is_neq(&self) -> bool {
+        pub fn is_neq(&self) -> bool {
             matches!(self, Self::Neq(..))
         }
 
@@ -919,7 +956,52 @@ pub mod parser_combinator {
         }
     }
 
-    #[derive(PartialEq, Eq, Debug)]
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct BinaryOperator<'s> {
+        lhs: Box<Expression<'s>>,
+        operator: OperatorToken<'s>,
+        rhs: Box<Expression<'s>>,
+    }
+
+    impl<'s> BinaryOperator<'s> {
+        fn from_tokens<'v, E>(
+            tokens: &'v [ExpressionToken<'s>],
+        ) -> Result<Option<Self>, nom::Err<E>>
+        where
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        {
+            //find the leftmost weakest operator and split there
+            let mut weakest_operator = None;
+            for (index, token) in tokens.iter().enumerate() {
+                if let ExpressionToken::Operator(operator) = token {
+                    if weakest_operator
+                        .map(|(_, wo)| wo < operator)
+                        .unwrap_or(true)
+                    {
+                        weakest_operator = Some((index, operator));
+                    }
+                }
+            }
+            if let Some((index, operator)) = weakest_operator {
+                let (lhs, op_and_rhs) = tokens.split_at(index);
+                if lhs.is_empty() || op_and_rhs.len() < 2 {
+                    // operator found, but lacking lhs or rhs
+                    return Ok(None);
+                }
+                let rhs = &op_and_rhs[1..];
+                Ok(Some(Self {
+                    lhs: Box::new(Expression::from_tokens(lhs)?),
+                    operator: Clone::clone(operator),
+                    rhs: Box::new(Expression::from_tokens(rhs)?),
+                }))
+            } else {
+                // no operators found
+                Ok(None)
+            }
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
     pub struct FunctionCall<'s> {
         callee: Box<Expression<'s>>, //does this make sense? is there a more specific type,
         //that could be used?
@@ -940,7 +1022,7 @@ pub mod parser_combinator {
         }
     }
 
-    #[derive(PartialEq, Eq, Debug)]
+    #[derive(PartialEq, Eq, Debug, Clone)]
     pub struct FunctionCallParameters<'s> {
         open_brace: Span<'s>,
         parameters: Vec<FunctionCallParameter<'s>>,
@@ -971,7 +1053,7 @@ pub mod parser_combinator {
         }
     }
 
-    #[derive(PartialEq, Eq, Debug)]
+    #[derive(PartialEq, Eq, Debug, Clone)]
     pub struct FunctionCallParameter<'s> {
         expression: Box<Expression<'s>>,
         comma: Option<Span<'s>>,
@@ -1279,7 +1361,7 @@ pub mod parser_combinator {
         use std::fs::read_to_string;
 
         use super::*;
-        use nom::error::VerboseError;
+        use nom::{combinator::eof, error::VerboseError};
         use textwrap::dedent;
 
         use rstest::*;
@@ -1321,6 +1403,25 @@ pub mod parser_combinator {
             let param1 = &params[1];
             assert_eq!("b", <&str>::from(param1.name()));
             assert_eq!("U32", <&str>::from(param1.typ()));
+        }
+
+        #[test]
+        fn test_operators() {
+            let input = "b == c";
+            let span = LocatedSpan::new(input);
+            let (remaining, tokens) =
+                terminated(many1(ExpressionToken::parse_span::<VerboseError<_>>), eof)(span)
+                    .unwrap();
+            dbg!(&tokens);
+            let parsed = BinaryOperator::from_tokens::<VerboseError<_>>(tokens.as_slice())
+                .unwrap()
+                .unwrap();
+            let operator_token = parsed.operator;
+            assert!(matches!(operator_token, OperatorToken::Eq(_)));
+            let lhs = parsed.lhs.as_ident().unwrap();
+            assert_eq!("b", <&str>::from(lhs));
+            let rhs = parsed.rhs.as_ident().unwrap();
+            assert_eq!("c", <&str>::from(rhs));
         }
 
         #[rstest]
