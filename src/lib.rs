@@ -152,7 +152,7 @@ pub mod parser_combinator {
         name: Ident<'s>,
         parameters: Parameters<'s>,
         arrow: Span<'s>,
-        return_type: Ident<'s>,
+        return_type: IdentPath<'s>,
         code_block: CodeBlock<'s>,
     }
 
@@ -187,7 +187,7 @@ pub mod parser_combinator {
             let (s, _) = multispace0(s)?;
             let (s, arrow) = tag("~>")(s)?;
             let (s, _) = multispace0(s)?;
-            let (s, return_type) = Ident::parse_span(s)?;
+            let (s, return_type) = IdentPath::parse_span(s)?;
             let (s, _) = multispace0(s)?;
             let (s, code_block) = CodeBlock::parse_span(s)?;
             Ok((
@@ -203,7 +203,7 @@ pub mod parser_combinator {
             ))
         }
 
-        pub fn return_type(&self) -> &Ident<'s> {
+        pub fn return_type(&self) -> &IdentPath<'s> {
             &self.return_type
         }
 
@@ -283,7 +283,7 @@ pub mod parser_combinator {
     pub struct Parameter<'s> {
         name: Ident<'s>,
         colon: Span<'s>,
-        typ: Ident<'s>,
+        typ: IdentPath<'s>,
         /// the `,` following the parameter, if it exists
         comma: Option<Span<'s>>,
     }
@@ -298,7 +298,7 @@ pub mod parser_combinator {
             let (s, _) = multispace0(s)?;
             let (s, colon) = tag(":")(s)?;
             let (s, _) = multispace0(s)?;
-            let (s, typ) = Ident::parse_span(s)?;
+            let (s, typ) = IdentPath::parse_span(s)?;
             let (s, _) = multispace0(s)?;
             let (s, comma) = opt(tag(","))(s)?;
             let (s, _) = multispace0(s)?;
@@ -317,7 +317,7 @@ pub mod parser_combinator {
             &self.name
         }
 
-        pub fn typ(&self) -> &Ident<'s> {
+        pub fn typ(&self) -> &IdentPath<'s> {
             &self.typ
         }
     }
@@ -376,14 +376,15 @@ pub mod parser_combinator {
         >(
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
-            alt((
+            let res = alt((
                 map(LetStatementWithSemicolon::parse_span, Self::LetStatement),
                 map(IfStatement::parse_span, Self::IfStatement),
                 map(ForLoop::parse_span, Self::ForLoop),
                 map(CodeBlock::parse_span, Self::CodeBlock),
                 map(ExpressionWithSemicolon::parse_span, Self::Expression),
                 //todo map(InlineBssembly::parse_span, Self::InlineBssembly),
-            ))(s)
+            ))(s)?;
+            Ok(res)
         }
     }
 
@@ -415,7 +416,7 @@ pub mod parser_combinator {
         variable_name: Ident<'s>,
         colon: Span<'s>,
         mutable: Option<Span<'s>>,
-        typ: Ident<'s>,
+        typ: IdentPath<'s>,
         equals: Span<'s>,
         assignment: Expression<'s>,
     }
@@ -434,7 +435,7 @@ pub mod parser_combinator {
             let (s, _) = multispace0(s)?;
             let (s, mutable) = opt(tag("mutable"))(s)?;
             let (s, _) = multispace0(s)?;
-            let (s, typ) = Ident::parse_span(s)?;
+            let (s, typ) = IdentPath::parse_span(s)?;
             let (s, _) = multispace0(s)?;
             let (s, equals) = tag("=")(s)?;
             let (s, _) = multispace0(s)?;
@@ -499,8 +500,10 @@ pub mod parser_combinator {
             let (s, then_block) = CodeBlock::parse_span(s).map_err(nom_err2failure)?;
             let (s, _) = multispace0(s)?;
             let (s, else_token) = tag("else")(s).map_err(nom_err2failure)?;
-            let (s, _) = multispace0(s)?;
+            // the multispace is missing here intentionally, as it is mandatory in case of if else
+            // but optional in case of a CodeBlock
             let (s, else_type) = ElseType::parse_span(s).map_err(nom_err2failure)?;
+            let (s, _) = multispace0(s)?;
             Ok((
                 s,
                 Self {
@@ -529,7 +532,7 @@ pub mod parser_combinator {
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
             alt((
-                map(CodeBlock::parse_span, Self::Normal),
+                map(preceded(multispace0, CodeBlock::parse_span), Self::Normal),
                 map(
                     preceded(
                         multispace1, //there needs to be a whitespace between `else` and the
@@ -652,7 +655,7 @@ pub mod parser_combinator {
         CharLiteral(CharLiteral<'s>),
         BinaryOperator(BinaryOperator<'s>),
         /// an Ident, could be a variable_name or a function name
-        Ident(Ident<'s>),
+        IdentPath(IdentPath<'s>),
         FunctionCall(FunctionCall<'s>),
     }
 
@@ -679,7 +682,7 @@ pub mod parser_combinator {
                     ExpressionToken::CharLiteral(v) => Ok(Self::CharLiteral(v.clone())),
                     ExpressionToken::Braces(_) => todo!(),
                     ExpressionToken::Operator(_) => todo!(),
-                    ExpressionToken::Ident(v) => Ok(Self::Ident(v.clone())),
+                    ExpressionToken::IdentPath(v) => Ok(Self::IdentPath(v.clone())),
                 }
             } else {
                 //more than one token ... need to build tree
@@ -702,8 +705,8 @@ pub mod parser_combinator {
             }
         }
 
-        pub fn as_ident(&self) -> Option<&Ident<'s>> {
-            if let Self::Ident(v) = self {
+        pub fn as_ident_path(&self) -> Option<&IdentPath<'s>> {
+            if let Self::IdentPath(v) = self {
                 Some(v)
             } else {
                 None
@@ -720,7 +723,7 @@ pub mod parser_combinator {
         Braces(BracesTokens<'s>),
         Operator(OperatorToken<'s>),
         /// an Ident, could be a variable_name or a function name
-        Ident(Ident<'s>),
+        IdentPath(IdentPath<'s>),
     }
 
     impl<'s> ExpressionToken<'s> {
@@ -735,7 +738,7 @@ pub mod parser_combinator {
                     map(CharLiteral::parse_span, Self::CharLiteral),
                     map(BracesTokens::parse_span, Self::Braces),
                     map(OperatorToken::parse_span, Self::Operator),
-                    map(Ident::parse_span, Self::Ident),
+                    map(IdentPath::parse_span, Self::IdentPath),
                 )),
                 multispace0,
             )(s)
@@ -1322,15 +1325,86 @@ pub mod parser_combinator {
     }
 
     #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct IdentPath<'s> {
+        segments: Vec<IdentPathSegment<'s>>,
+    }
+
+    impl<'s> Display for &IdentPath<'s> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            for segment in &self.segments {
+                write!(f, "{}", segment)?;
+            }
+            Ok(())
+        }
+    }
+
+    impl<'s> IdentPath<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            let (s, segments) = many1(IdentPathSegment::parse_span)(s)?;
+            let last_idx = segments.len() - 1;
+            for (idx, segment) in segments.iter().enumerate() {
+                if idx == last_idx {
+                    assert!(segment.double_colons.is_none());
+                } else {
+                    assert!(segment.double_colons.is_some());
+                }
+            }
+            Ok((s, Self { segments }))
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct IdentPathSegment<'s> {
+        ident: Ident<'s>,
+        double_colons: Option<Span<'s>>,
+    }
+
+    impl<'s> Display for IdentPathSegment<'s> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let double_colons_str = if self.double_colons.is_some() {
+                "::"
+            } else {
+                ""
+            };
+            write!(f, "{}{}", self.ident, double_colons_str)
+        }
+    }
+
+    impl<'s> IdentPathSegment<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            let (s, ident) = Ident::parse_span(s)?;
+            let (s, double_colons) = opt(tag("::"))(s)?;
+            Ok((
+                s,
+                Self {
+                    ident,
+                    double_colons,
+                },
+            ))
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
     pub struct Ident<'s>(Span<'s>);
+
     impl<'s> Display for Ident<'s> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             f.write_str(self.0.fragment())
         }
     }
+
     fn is_ident_char(c: char) -> bool {
         c == '_' || AsChar::is_alphanum(c)
     }
+
     impl<'s> Ident<'s> {
         pub fn parse_span<
             E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
@@ -1393,7 +1467,7 @@ pub mod parser_combinator {
             assert_eq!(1, bs_file.entries().len());
             let bs_function = bs_file.entries()[0].as_function().unwrap();
             assert_eq!("main", <&str>::from(bs_function.name()));
-            assert_eq!("Nothing", <&str>::from(bs_function.return_type()));
+            assert_eq!("Nothing", &bs_function.return_type().to_string());
         }
 
         #[test]
@@ -1408,15 +1482,15 @@ pub mod parser_combinator {
             assert_eq!(1, bs_file.entries().len());
             let bs_function = bs_file.entries()[0].as_function().unwrap();
             assert_eq!("f", <&str>::from(bs_function.name()));
-            assert_eq!("Nothing", <&str>::from(bs_function.return_type()));
+            assert_eq!("Nothing", &bs_function.return_type().to_string());
             let params = bs_function.parameters().params();
             assert_eq!(2, params.len());
             let param0 = &params[0];
             assert_eq!("a", <&str>::from(param0.name()));
-            assert_eq!("U32", <&str>::from(param0.typ()));
+            assert_eq!("U32", &param0.typ().to_string());
             let param1 = &params[1];
             assert_eq!("b", <&str>::from(param1.name()));
-            assert_eq!("U32", <&str>::from(param1.typ()));
+            assert_eq!("U32", &param1.typ().to_string());
         }
 
         #[test]
@@ -1426,16 +1500,19 @@ pub mod parser_combinator {
             let (remaining, tokens) =
                 terminated(many1(ExpressionToken::parse_span::<VerboseError<_>>), eof)(span)
                     .unwrap();
-            dbg!(&tokens);
             let parsed = BinaryOperator::from_tokens::<VerboseError<_>>(tokens.as_slice())
                 .unwrap()
                 .unwrap();
             let operator_token = parsed.operator;
             assert!(matches!(operator_token, OperatorToken::Eq(_)));
-            let lhs = parsed.lhs.as_ident().unwrap();
-            assert_eq!("b", <&str>::from(lhs));
-            let rhs = parsed.rhs.as_ident().unwrap();
-            assert_eq!("c", <&str>::from(rhs));
+            let lhs = parsed.lhs.as_ident_path().unwrap();
+            assert!(lhs.segments.len() == 1);
+            let lhs_ident = &lhs.segments[0];
+            assert_eq!("b", <&str>::from(&lhs_ident.ident));
+            let rhs = parsed.rhs.as_ident_path().unwrap();
+            assert!(rhs.segments.len() == 1);
+            let rhs_ident = &rhs.segments[0];
+            assert_eq!("c", <&str>::from(&rhs_ident.ident));
         }
 
         #[rstest]
