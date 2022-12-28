@@ -348,7 +348,7 @@ pub mod parser_combinator {
             let (s, _) = multispace0(s)?;
             let (s, statements) = many0(terminated(Statement::parse_span, multispace0))(s)
                 .map_err(nom_err2failure)?;
-            let (s, closed_curly_brace) = tag("}")(s)?;
+            let (s, closed_curly_brace) = tag("}")(s).map_err(nom_err2failure)?;
             Ok((
                 s,
                 Self {
@@ -429,17 +429,17 @@ pub mod parser_combinator {
         ) -> IResult<Span, Self, E> {
             let (s, let_token) = tag("let")(s)?;
             let (s, _) = multispace1(s)?;
-            let (s, variable_name) = Ident::parse_span(s)?;
+            let (s, variable_name) = Ident::parse_span(s).map_err(nom_err2failure)?;
             let (s, _) = multispace0(s)?;
-            let (s, colon) = tag(":")(s)?;
             let (s, _) = multispace0(s)?;
             let (s, mutable) = opt(tag("mutable"))(s)?;
+            let (s, colon) = tag(":")(s).map_err(nom_err2failure)?;
             let (s, _) = multispace0(s)?;
-            let (s, typ) = IdentPath::parse_span(s)?;
+            let (s, typ) = IdentPath::parse_span(s).map_err(nom_err2failure)?;
             let (s, _) = multispace0(s)?;
-            let (s, equals) = tag("=")(s)?;
+            let (s, equals) = tag("=")(s).map_err(nom_err2failure)?;
             let (s, _) = multispace0(s)?;
-            let (s, assignment) = Expression::parse_span(s)?;
+            let (s, assignment) = Expression::parse_span(s).map_err(nom_err2failure)?;
             Ok((
                 s,
                 Self {
