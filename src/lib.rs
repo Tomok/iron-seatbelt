@@ -812,6 +812,9 @@ pub mod parser_combinator {
         And(Span<'s>),
         Or(Span<'s>),
 
+        /// `=`
+        Assign(Span<'s>),
+
         Eq(Span<'s>),
         /// `!=`
         Neq(Span<'s>),
@@ -825,7 +828,7 @@ pub mod parser_combinator {
 
     impl<'s> PartialOrd for OperatorToken<'s> {
         fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-            const fn operator_to_bind_strength(o: &OperatorToken<'_>) -> u8 {
+            const fn operator_to_bind_strength(o: &OperatorToken<'_>) -> i8 {
                 match o {
                     OperatorToken::Mul(_) => 4,
                     OperatorToken::Div(_) => 4,
@@ -840,7 +843,8 @@ pub mod parser_combinator {
                     OperatorToken::Ge(_) => 1,
                     OperatorToken::Lt(_) => 1,
                     OperatorToken::Gt(_) => 1,
-                    OperatorToken::Comma(_) => 0,
+                    OperatorToken::Assign(_) => 0,
+                    OperatorToken::Comma(_) => -1,
                 }
             }
 
@@ -868,6 +872,7 @@ pub mod parser_combinator {
                 map(tag(">="), Self::Ge),
                 map(tag("<"), Self::Lt),
                 map(tag(">"), Self::Gt),
+                map(tag("="), Self::Assign),
                 map(tag(","), Self::Comma),
             ))(s)
         }
@@ -888,6 +893,7 @@ pub mod parser_combinator {
                 | OperatorToken::Ge(s)
                 | OperatorToken::Lt(s)
                 | OperatorToken::Gt(s)
+                | OperatorToken::Assign(s)
                 | OperatorToken::Comma(s) => s,
             }
         }
