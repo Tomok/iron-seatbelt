@@ -431,10 +431,10 @@ pub mod parser_combinator {
             let (s, _) = multispace1(s)?;
             let (s, variable_name) = Ident::parse_span(s).map_err(nom_err2failure)?;
             let (s, _) = multispace0(s)?;
-            let (s, _) = multispace0(s)?;
-            let (s, mutable) = opt(tag("mutable"))(s)?;
             let (s, colon) = tag(":")(s).map_err(nom_err2failure)?;
             let (s, _) = multispace0(s)?;
+            let (s, mutable) =
+                opt(terminated(tag("mutable"), multispace1))(s).map_err(nom_err2failure)?;
             let (s, typ) = IdentPath::parse_span(s).map_err(nom_err2failure)?;
             let (s, _) = multispace0(s)?;
             let (s, equals) = tag("=")(s).map_err(nom_err2failure)?;
