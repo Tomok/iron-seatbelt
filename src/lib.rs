@@ -344,7 +344,8 @@ pub mod parser_combinator {
         ) -> IResult<Span, Self, E> {
             let (s, open_curly_brace) = tag("{")(s)?;
             let (s, _) = multispace0(s)?;
-            let (s, statements) = many0(terminated(Statement::parse_span, multispace0))(s)?;
+            let (s, statements) = many0(terminated(Statement::parse_span, multispace0))(s)
+                .map_err(nom_err2failure)?;
             let (s, closed_curly_brace) = tag("}")(s)?;
             Ok((
                 s,
