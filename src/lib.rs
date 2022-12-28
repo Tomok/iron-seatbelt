@@ -1,5 +1,7 @@
 pub mod parser_combinator {
 
+    use std::fmt::Display;
+
     use nom::{
         branch::alt,
         bytes::complete::{tag, take_while1},
@@ -1321,6 +1323,11 @@ pub mod parser_combinator {
 
     #[derive(PartialEq, Eq, Debug, Clone)]
     pub struct Ident<'s>(Span<'s>);
+    impl<'s> Display for Ident<'s> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str(self.0.fragment())
+        }
+    }
     fn is_ident_char(c: char) -> bool {
         c == '_' || AsChar::is_alphanum(c)
     }
