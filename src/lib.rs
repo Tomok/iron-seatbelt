@@ -4,8 +4,8 @@ pub mod parser_combinator {
 
     use nom::{
         branch::alt,
-        bytes::complete::{tag, take_while1},
-        character::complete::{anychar, digit1, hex_digit1, multispace0, multispace1, one_of},
+        bytes::complete::{tag, take_while, take_while1},
+        character::complete::{anychar, digit1, hex_digit1, multispace1, one_of},
         combinator::{all_consuming, map, opt},
         error::{context, ContextError, Error, ErrorKind, ParseError, VerboseError},
         multi::{many0, many1},
@@ -31,7 +31,7 @@ pub mod parser_combinator {
         ) -> IResult<Span, Self, E> {
             let (s, (entries, _whitespace)) = context(
                 "File",
-                all_consuming(tuple((many0(FileEntry::parse_span), multispace0))),
+                all_consuming(tuple((many0(FileEntry::parse_span), space_or_comment0))),
             )(s)?;
             Ok((s, Self { entries }))
         }
@@ -96,6 +96,58 @@ pub mod parser_combinator {
             }
         }
     }
+
+    fn single_space_or_comment<'s, E>(s: Span<'s>) -> IResult<Span, (), E>
+    where
+        E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+    {
+        let (s, _) = alt((map(multispace1, |_| ()), map(Comment::parse_span, |_| ())))(s)?;
+        Ok((s, ()))
+    }
+    fn space_or_comment1<'s, E>(s: Span<'s>) -> IResult<Span, (), E>
+    where
+        E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+    {
+        let (s, _) = many1(single_space_or_comment)(s)?;
+        Ok((s, ()))
+    }
+    fn space_or_comment0<'s, E>(s: Span<'s>) -> IResult<Span, (), E>
+    where
+        E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+    {
+        let (s, _) = many0(single_space_or_comment)(s)?;
+        Ok((s, ()))
+    }
+
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    pub struct Comment<'s> {
+        double_slashes: Span<'s>,
+        text: Span<'s>,
+    }
+
+    fn not_line_ending(c: char) -> bool {
+        !"\n\r".contains(c)
+    }
+
+    impl<'s> Comment<'s> {
+        pub fn parse_span<
+            E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
+        >(
+            s: Span<'s>,
+        ) -> IResult<Span, Self, E> {
+            let (s, double_slashes) = tag("//")(s)?;
+            let (s, text) = take_while(not_line_ending)(s)?;
+            let (s, _) = space_or_comment0(s)?;
+            Ok((
+                s,
+                Self {
+                    double_slashes,
+                    text,
+                },
+            ))
+        }
+    }
+
     #[derive(PartialEq, Eq, Debug)]
     pub struct Import<'s> {
         import: Span<'s>,
@@ -109,13 +161,13 @@ pub mod parser_combinator {
         >(
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, import) = tag("import")(s)?;
-            let (s, _) = multispace1(s)?;
+            let (s, _) = space_or_comment1(s)?;
             let (s, segments) = many1(ImportSegment::parse_span)(s)?; //todo: check correct usage
                                                                       //of dots in import
                                                                       //statements
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, semicomoln) = tag(";")(s)?;
             Ok((
                 s,
@@ -178,17 +230,17 @@ pub mod parser_combinator {
         >(
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, function) = tag("function")(s)?;
-            let (s, _) = multispace1(s)?;
+            let (s, _) = space_or_comment1(s)?;
             let (s, name) = Ident::parse_span(s)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, parameters) = Parameters::parse_span(s)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, arrow) = tag("~>")(s)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, return_type) = IdentPath::parse_span(s)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, code_block) = CodeBlock::parse_span(s)?;
             Ok((
                 s,
@@ -232,7 +284,7 @@ pub mod parser_combinator {
                                                //`,`
             let mut read_pos = s; //used to keep position after each loop
             let closing_brace = loop {
-                let (s, _) = multispace0(read_pos)?;
+                let (s, _) = space_or_comment0(read_pos)?;
                 //is end of parameter list?
                 match tag(")")(s) {
                     Ok((s, closing_brace)) => {
@@ -255,7 +307,7 @@ pub mod parser_combinator {
                         let (s, param) = Parameter::parse_span(input)?;
                         next_param_allowed = param.comma.is_some();
                         params.push(param);
-                        let (s, _) = multispace0(s)?;
+                        let (s, _) = space_or_comment0(s)?;
                         read_pos = s;
                     }
                     Err(e) => {
@@ -295,13 +347,13 @@ pub mod parser_combinator {
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
             let (s, name) = Ident::parse_span(s)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, colon) = tag(":")(s)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, typ) = IdentPath::parse_span(s)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, comma) = opt(tag(","))(s)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             Ok((
                 s,
                 Self {
@@ -345,8 +397,8 @@ pub mod parser_combinator {
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
             let (s, open_curly_brace) = tag("{")(s)?;
-            let (s, _) = multispace0(s)?;
-            let (s, statements) = many0(terminated(Statement::parse_span, multispace0))(s)
+            let (s, _) = space_or_comment0(s)?;
+            let (s, statements) = many0(terminated(Statement::parse_span, space_or_comment0))(s)
                 .map_err(nom_err2failure)?;
             let (s, closed_curly_brace) = tag("}")(s).map_err(nom_err2failure)?;
             Ok((
@@ -401,7 +453,7 @@ pub mod parser_combinator {
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
             map(
-                separated_pair(opt(Expression::parse_span), multispace0, tag(";")),
+                separated_pair(opt(Expression::parse_span), space_or_comment0, tag(";")),
                 |(expression, semicolon)| Self {
                     expression,
                     semicolon,
@@ -428,17 +480,17 @@ pub mod parser_combinator {
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
             let (s, let_token) = tag("let")(s)?;
-            let (s, _) = multispace1(s)?;
+            let (s, _) = space_or_comment1(s)?;
             let (s, variable_name) = Ident::parse_span(s).map_err(nom_err2failure)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, colon) = tag(":")(s).map_err(nom_err2failure)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, mutable) =
-                opt(terminated(tag("mutable"), multispace1))(s).map_err(nom_err2failure)?;
+                opt(terminated(tag("mutable"), space_or_comment1))(s).map_err(nom_err2failure)?;
             let (s, typ) = IdentPath::parse_span(s).map_err(nom_err2failure)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, equals) = tag("=")(s).map_err(nom_err2failure)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, assignment) = Expression::parse_span(s).map_err(nom_err2failure)?;
             Ok((
                 s,
@@ -468,7 +520,7 @@ pub mod parser_combinator {
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
             map(
-                separated_pair(LetStatement::parse_span, multispace0, tag(";")),
+                separated_pair(LetStatement::parse_span, space_or_comment0, tag(";")),
                 |(let_statment, semicolon)| Self {
                     let_statment,
                     semicolon,
@@ -494,16 +546,16 @@ pub mod parser_combinator {
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
             let (s, if_token) = tag("if")(s)?;
-            let (s, _) = multispace1(s)?;
+            let (s, _) = space_or_comment1(s)?;
             let (s, condition) = Expression::parse_span(s).map_err(nom_err2failure)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, then_block) = CodeBlock::parse_span(s).map_err(nom_err2failure)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, else_token) = tag("else")(s).map_err(nom_err2failure)?;
             // the multispace is missing here intentionally, as it is mandatory in case of if else
             // but optional in case of a CodeBlock
             let (s, else_type) = ElseType::parse_span(s).map_err(nom_err2failure)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             Ok((
                 s,
                 Self {
@@ -532,10 +584,13 @@ pub mod parser_combinator {
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
             alt((
-                map(preceded(multispace0, CodeBlock::parse_span), Self::Normal),
+                map(
+                    preceded(space_or_comment0, CodeBlock::parse_span),
+                    Self::Normal,
+                ),
                 map(
                     preceded(
-                        multispace1, //there needs to be a whitespace between `else` and the
+                        space_or_comment1, //there needs to be a whitespace between `else` and the
                         //following `if`
                         IfStatement::parse_span,
                     ),
@@ -559,9 +614,9 @@ pub mod parser_combinator {
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
             let (s, for_token) = tag("for")(s)?;
-            let (s, _) = multispace1(s)?;
+            let (s, _) = space_or_comment1(s)?;
             let (s, params) = ForLoopKind::parse_span(s).map_err(nom_err2failure)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, loop_block) = CodeBlock::parse_span(s).map_err(nom_err2failure)?;
             Ok((
                 s,
@@ -594,9 +649,9 @@ pub mod parser_combinator {
             alt((
                 map(
                     tuple((
-                        terminated(tag("("), multispace0),
-                        terminated(ForLoopParams::parse_span, multispace0),
-                        terminated(tag(")"), multispace0),
+                        terminated(tag("("), space_or_comment0),
+                        terminated(ForLoopParams::parse_span, space_or_comment0),
+                        terminated(tag(")"), space_or_comment0),
                     )),
                     |(open_brace, params, closing_brace)| Self::WithBraces {
                         open_brace,
@@ -605,7 +660,11 @@ pub mod parser_combinator {
                     },
                 ),
                 map(
-                    delimited(multispace0, ForLoopParams::parse_span, multispace0),
+                    delimited(
+                        space_or_comment0,
+                        ForLoopParams::parse_span,
+                        space_or_comment0,
+                    ),
                     Self::WithoutBraces,
                 ),
             ))(s)
@@ -628,13 +687,13 @@ pub mod parser_combinator {
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
             let (s, start_assignment) = opt(LetStatement::parse_span)(s)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, semicolon1) = tag(";")(s)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, condition) = opt(Expression::parse_span)(s)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, semicolon2) = tag(";")(s)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, increment_expr) = opt(Expression::parse_span)(s)?;
             Ok((
                 s,
@@ -740,7 +799,7 @@ pub mod parser_combinator {
                     map(OperatorToken::parse_span, Self::Operator),
                     map(IdentPath::parse_span, Self::IdentPath),
                 )),
-                multispace0,
+                space_or_comment0,
             )(s)
         }
 
@@ -787,9 +846,9 @@ pub mod parser_combinator {
             s: Span<'s>,
         ) -> IResult<Span, Self, E> {
             let (s, open_brace) = tag("(")(s)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, contents) = many0(ExpressionToken::parse_span)(s)?;
-            let (s, _) = multispace0(s)?;
+            let (s, _) = space_or_comment0(s)?;
             let (s, closing_brace) = tag(")")(s)?;
             Ok((
                 s,
@@ -1116,13 +1175,13 @@ pub mod parser_combinator {
         ) -> IResult<Span, Self, E> {
             terminated(
                 map(
-                    separated_pair(Expression::parse_span, multispace0, opt(tag(","))),
+                    separated_pair(Expression::parse_span, space_or_comment0, opt(tag(","))),
                     |(expr, comma)| Self {
                         expression: Box::new(expr),
                         comma,
                     },
                 ),
-                multispace0,
+                space_or_comment0,
             )(s)
         }
     }
