@@ -16,6 +16,9 @@ pub mod parser_combinator {
 
     use nom::character::complete::char as char_tag; //redefine to avoid confusion with char type
 
+    pub mod expression;
+    use expression::Expression;
+
     type Span<'a> = LocatedSpan<&'a str>;
 
     #[derive(PartialEq, Eq, Debug)]
@@ -708,8 +711,6 @@ pub mod parser_combinator {
         }
     }
 
-    mod expression;
-    pub use expression::Expression;
     /*#[derive(PartialEq, Eq, Debug)]
     pub struct InlineBssembly<'s> {
         //todo
