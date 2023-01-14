@@ -6,24 +6,24 @@ use nom::{
 };
 use nom_locate::LocatedSpan;
 
-use super::{space_or_comment0, CharLiteral, IdentPath, IntLiteral, Span};
+use super::{space_or_comment0, CharLiteral, FromSpan, IdentPath, IntLiteral, Span};
 
 mod function_call;
 use function_call::FunctionCall;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum Expression<'s> {
-    IntLiteral(IntLiteral<'s>),
-    CharLiteral(CharLiteral<'s>),
+pub enum Expression<'a> {
+    IntLiteral(IntLiteral<'a>),
+    CharLiteral(CharLiteral<'a>),
     /// an Ident, could be a variable_name or a function name
-    IdentPath(IdentPath<'s>),
-    FunctionCall(FunctionCall<'s>),
+    IdentPath(IdentPath<'a>),
+    FunctionCall(FunctionCall<'a>),
     //todo operators
 }
 
-impl<'s> Expression<'s> {
-    pub fn parse_span<E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>>(
-        s: Span<'s>,
+impl<'a> FromSpan<'a> for Expression<'a> {
+    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
+        s: Span<'a>,
     ) -> IResult<Span, Self, E> {
         alt((
             map(IntLiteral::parse_span, Self::IntLiteral),

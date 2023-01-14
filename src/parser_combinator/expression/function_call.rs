@@ -8,17 +8,17 @@ use nom::{
 };
 use nom_locate::LocatedSpan;
 
-use super::{space_or_comment0, Expression, IdentPath, Span};
+use super::{space_or_comment0, Expression, FromSpan, IdentPath, Span};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub struct FunctionCall<'s> {
-    callee: FunctionCallee<'s>,
+pub struct FunctionCall<'a> {
+    callee: FunctionCallee<'a>,
     //that could be used?
-    parameters: FunctionCallParameters<'s>,
+    parameters: FunctionCallParameters<'a>,
 }
 
-impl<'s> From<FunctionCallChain<'s>> for FunctionCall<'s> {
-    fn from(value: FunctionCallChain<'s>) -> Self {
+impl<'a> From<FunctionCallChain<'a>> for FunctionCall<'a> {
+    fn from(value: FunctionCallChain<'a>) -> Self {
         let (innermost_params, call_params) = value.call_parameters.split_first().unwrap();
         // unwrap is safe, as [FunctionCallChain.call_parameters] guarantees at least one element
 
@@ -37,9 +37,9 @@ impl<'s> From<FunctionCallChain<'s>> for FunctionCall<'s> {
     }
 }
 
-impl<'s> FunctionCall<'s> {
-    pub fn parse_span<E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>>(
-        s: Span<'s>,
+impl<'a> FromSpan<'a> for FunctionCall<'a> {
+    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
+        s: Span<'a>,
     ) -> IResult<Span, Self, E> {
         let (s, call_chain) = FunctionCallChain::parse_span(s)?;
         Ok((s, call_chain.into()))
@@ -53,16 +53,16 @@ impl<'s> FunctionCall<'s> {
 /// (`vec![(), ()]` in the example). that can than be converted into the corresponding functionCall
 /// objects
 #[derive(Debug)]
-struct FunctionCallChain<'s> {
-    innermost_function_ident: IdentPath<'s>,
+struct FunctionCallChain<'a> {
+    innermost_function_ident: IdentPath<'a>,
     /// call_parameters, has at least one value, otherwise this is not a function call chain but an
     /// [IdentPath], hence this object should not have been created
-    call_parameters: Vec<FunctionCallParameters<'s>>,
+    call_parameters: Vec<FunctionCallParameters<'a>>,
 }
 
-impl<'s> FunctionCallChain<'s> {
-    pub fn parse_span<E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>>(
-        s: Span<'s>,
+impl<'a> FromSpan<'a> for FunctionCallChain<'a> {
+    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
+        s: Span<'a>,
     ) -> IResult<Span, Self, E> {
         let (s, innermost_function_ident) = IdentPath::parse_span(s)?;
         let (s, _) = space_or_comment0(s)?;
@@ -78,20 +78,22 @@ impl<'s> FunctionCallChain<'s> {
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum FunctionCallee<'s> {
-    IdentPath(IdentPath<'s>),
-    FunctionCall(Box<FunctionCall<'s>>),
+pub enum FunctionCallee<'a> {
+    IdentPath(IdentPath<'a>),
+    FunctionCall(Box<FunctionCall<'a>>),
 }
 
-impl<'s> FunctionCallee<'s> {
-    pub fn parse_span<E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>>(
-        s: Span<'s>,
+impl<'a> FromSpan<'a> for FunctionCallee<'a> {
+    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
+        s: Span<'a>,
     ) -> IResult<Span, Self, E> {
         //todo: functionCall
         map(IdentPath::parse_span, Self::IdentPath)(s)
     }
+}
 
-    pub fn as_ident_path(&self) -> Option<&IdentPath<'s>> {
+impl<'a> FunctionCallee<'a> {
+    pub fn as_ident_path(&self) -> Option<&IdentPath<'a>> {
         if let Self::IdentPath(v) = self {
             Some(v)
         } else {
@@ -115,7 +117,7 @@ impl<'s> FunctionCallee<'s> {
         matches!(self, Self::FunctionCall(..))
     }
 
-    pub fn as_function_call(&self) -> Option<&FunctionCall<'s>> {
+    pub fn as_function_call(&self) -> Option<&FunctionCall<'a>> {
         if let Self::FunctionCall(v) = self {
             Some(v)
         } else {
@@ -125,15 +127,15 @@ impl<'s> FunctionCallee<'s> {
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub struct FunctionCallParameters<'s> {
-    open_brace: Span<'s>,
-    parameters: Vec<FunctionCallParameter<'s>>,
-    closing_brace: Span<'s>,
+pub struct FunctionCallParameters<'a> {
+    open_brace: Span<'a>,
+    parameters: Vec<FunctionCallParameter<'a>>,
+    closing_brace: Span<'a>,
 }
 
-impl<'s> FunctionCallParameters<'s> {
-    pub fn parse_span<E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>>(
-        s: Span<'s>,
+impl<'a> FromSpan<'a> for FunctionCallParameters<'a> {
+    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
+        s: Span<'a>,
     ) -> IResult<Span, Self, E> {
         let (s, open_brace) = tag("(")(s)?;
         let (s, _) = space_or_comment0(s)?;
@@ -152,14 +154,14 @@ impl<'s> FunctionCallParameters<'s> {
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub struct FunctionCallParameter<'s> {
-    expression: Box<Expression<'s>>,
-    comma: Option<Span<'s>>,
+pub struct FunctionCallParameter<'a> {
+    expression: Box<Expression<'a>>,
+    comma: Option<Span<'a>>,
 }
 
-impl<'s> FunctionCallParameter<'s> {
-    pub fn parse_span<E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>>(
-        s: Span<'s>,
+impl<'a> FromSpan<'a> for FunctionCallParameter<'a> {
+    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
+        s: Span<'a>,
     ) -> IResult<Span, Self, E> {
         terminated(
             map(
