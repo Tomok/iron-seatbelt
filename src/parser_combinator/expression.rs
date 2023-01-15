@@ -9,16 +9,23 @@ use nom_locate::LocatedSpan;
 use super::{space_or_comment0, CharLiteral, FromSpan, IdentPath, IntLiteral, Span};
 
 mod function_call;
-use function_call::FunctionCall;
+pub use function_call::{
+    FunctionCall, FunctionCallParameter, FunctionCallParameters, FunctionCallee,
+};
+mod binary_operation;
+pub use binary_operation::{BinaryOperant, BinaryOperation, BinaryOperator};
+
+mod bracket_operation;
+pub use bracket_operation::BracketOperation;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Expression<'a> {
     IntLiteral(IntLiteral<'a>),
     CharLiteral(CharLiteral<'a>),
     /// an Ident, could be a variable_name or a function name
-    IdentPath(IdentPath<'a>),
     FunctionCall(FunctionCall<'a>),
-    //todo operators
+    BinaryOperation(BinaryOperation<'a>),
+    IdentPath(IdentPath<'a>),
 }
 
 impl<'a> FromSpan<'a> for Expression<'a> {
@@ -29,19 +36,8 @@ impl<'a> FromSpan<'a> for Expression<'a> {
             map(IntLiteral::parse_span, Self::IntLiteral),
             map(CharLiteral::parse_span, Self::CharLiteral),
             map(FunctionCall::parse_span, Self::FunctionCall),
+            map(BinaryOperation::parse_span, Self::BinaryOperation),
             map(IdentPath::parse_span, Self::IdentPath),
         ))(s)
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use nom::{combinator::all_consuming, error::VerboseError};
-
-    #[test]
-    fn test_operators() {
-        let input = "b == c";
-        let span = LocatedSpan::new(input);
     }
 }
