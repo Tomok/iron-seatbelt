@@ -58,16 +58,13 @@ impl<'a> BinaryOperation<'a> {
                 }
                 (std::cmp::Ordering::Equal, BinaryOperationAssociativity::RightToLeft)
                 | (std::cmp::Ordering::Greater, _) => {}
-                (
-                    std::cmp::Ordering::Equal,
-                    BinaryOperationAssociativity::RequireParentheses,
-                ) => order_of_operators_determined = false,
+                (std::cmp::Ordering::Equal, BinaryOperationAssociativity::RequireParentheses) => {
+                    order_of_operators_determined = false
+                }
             }
         }
         if !order_of_operators_determined {
-            todo!(
-                "raise error here = Parentheses necessary to determine order of operations..."
-            )
+            todo!("raise error here = Parentheses necessary to determine order of operations...")
         }
         let (left_operators, mid_right_operators) = operators.split_at(weakest_operator_idx);
         let (left_operants, right_operants) = operants.split_at(weakest_operator_idx + 1);
@@ -347,9 +344,7 @@ pub enum BinaryOperationAssociativity {
 }
 
 impl<'s> BinaryOperator<'s> {
-    pub fn parse_span<
-        E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>,
-    >(
+    pub fn parse_span<E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>>(
         s: Span<'s>,
     ) -> IResult<Span, Self, E> {
         alt((
@@ -445,8 +440,7 @@ mod test {
         let input = format!("a {} b", operator);
         let span = LocatedSpan::new(input.as_str());
         let (_, res) =
-            all_consuming::<_, _, VerboseError<_>, _>(BinaryOperation::parse_span)(span)
-                .unwrap();
+            all_consuming::<_, _, VerboseError<_>, _>(BinaryOperation::parse_span)(span).unwrap();
         assert_eq!(&operator, res.operator().span().fragment());
         assert_eq!("a", &res.lhs().as_ident_path().unwrap().to_string());
         assert_eq!("b", &res.rhs().as_ident_path().unwrap().to_string());
@@ -457,8 +451,7 @@ mod test {
         let input = "a + b * c - c";
         let span = LocatedSpan::new(input);
         let (_, res) =
-            all_consuming::<_, _, VerboseError<_>, _>(BinaryOperation::parse_span)(span)
-                .unwrap();
+            all_consuming::<_, _, VerboseError<_>, _>(BinaryOperation::parse_span)(span).unwrap();
         assert_eq!(&"-", res.operator().span().fragment());
         let addition = res.lhs().as_binary_operation().unwrap();
         assert_eq!(&"+", addition.operator().span().fragment());
@@ -466,4 +459,3 @@ mod test {
         assert_eq!(&"*", multiplication.operator().span().fragment());
     }
 }
-
