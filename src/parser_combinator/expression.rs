@@ -1,6 +1,5 @@
 use nom::{
     branch::alt,
-    bytes::complete::tag,
     combinator::map,
     error::{ContextError, ParseError},
     IResult,
