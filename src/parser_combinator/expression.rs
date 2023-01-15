@@ -16,6 +16,9 @@ pub use function_call::{
 mod binary_operation;
 pub use binary_operation::{BinaryOperant, BinaryOperation, BinaryOperator};
 
+mod bracket_operation;
+pub use bracket_operation::BracketOperation;
+
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Expression<'a> {
     IntLiteral(IntLiteral<'a>),

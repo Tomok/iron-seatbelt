@@ -7,7 +7,9 @@ use nom::{
 };
 use nom_locate::LocatedSpan;
 
-use super::{space_or_comment0, FromSpan, FunctionCall, IdentPath, IntLiteral, Span};
+use super::{
+    space_or_comment0, BracketOperation, FromSpan, FunctionCall, IdentPath, IntLiteral, Span,
+};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct BinaryOperation<'a> {
@@ -111,6 +113,7 @@ impl<'a> BinaryOperation<'a> {
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum BinaryOperant<'a> {
+    BracketOperation(BracketOperation<'a>),
     FunctionCall(FunctionCall<'a>),
     IntLiteral(IntLiteral<'a>),
     IdentPath(IdentPath<'a>),
@@ -195,11 +198,28 @@ impl<'a> BinaryOperant<'a> {
             None
         }
     }
+
+    /// Returns `true` if the binary operant is [`Bracket`].
+    ///
+    /// [`Bracket`]: BinaryOperant::Bracket
+    #[must_use]
+    pub fn is_bracket(&self) -> bool {
+        matches!(self, Self::BracketOperation(..))
+    }
+
+    pub fn as_bracket(&self) -> Option<&BracketOperation<'a>> {
+        if let Self::BracketOperation(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
 }
 
 impl<'a> From<BinarySequenceOperant<'a>> for BinaryOperant<'a> {
     fn from(value: BinarySequenceOperant<'a>) -> Self {
         match value {
+            BinarySequenceOperant::BracketOperation(bo) => Self::BracketOperation(bo),
             BinarySequenceOperant::FunctionCall(fc) => Self::FunctionCall(fc),
             BinarySequenceOperant::IntLiteral(il) => Self::IntLiteral(il),
             BinarySequenceOperant::IdentPath(ip) => Self::IdentPath(ip),
@@ -393,6 +413,7 @@ impl<'s> BinaryOperator<'s> {
 
 #[derive(Clone, Debug)]
 enum BinarySequenceOperant<'a> {
+    BracketOperation(BracketOperation<'a>),
     FunctionCall(FunctionCall<'a>),
     IntLiteral(IntLiteral<'a>),
     IdentPath(IdentPath<'a>),
@@ -403,6 +424,7 @@ impl<'a> FromSpan<'a> for BinarySequenceOperant<'a> {
         s: Span<'a>,
     ) -> IResult<Span, Self, E> {
         alt((
+            map(BracketOperation::parse_span, Self::BracketOperation),
             map(FunctionCall::parse_span, Self::FunctionCall),
             map(IntLiteral::parse_span, Self::IntLiteral),
             map(IdentPath::parse_span, Self::IdentPath),
