@@ -10,7 +10,9 @@ use nom_locate::LocatedSpan;
 use super::{space_or_comment0, CharLiteral, FromSpan, IdentPath, IntLiteral, Span};
 
 mod function_call;
-use function_call::FunctionCall;
+pub use function_call::{
+    FunctionCall, FunctionCallParameter, FunctionCallParameters, FunctionCallee,
+};
 mod binary_operation;
 pub use binary_operation::{BinaryOperant, BinaryOperation, BinaryOperator};
 
