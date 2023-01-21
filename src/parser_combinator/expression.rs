@@ -192,8 +192,10 @@ impl<'a> FromSpan<'a> for Expression<'a> {
         ))(s)
     }
 }
+
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Continue<'a>(Span<'a>);
+
 impl<'a> FromSpan<'a> for Continue<'a> {
     fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
         s: Span<'a>,
@@ -206,6 +208,7 @@ impl<'a> FromSpan<'a> for Continue<'a> {
 }
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Break<'a>(Span<'a>);
+
 impl<'a> FromSpan<'a> for Break<'a> {
     fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
         s: Span<'a>,
@@ -214,5 +217,36 @@ impl<'a> FromSpan<'a> for Break<'a> {
             terminated(tag("break"), peek(tuple((space_or_comment0, tag(";"))))),
             Self,
         )(s)
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+    use nom::error::VerboseError;
+
+    #[test]
+    fn test_break() {
+        let input = "break;";
+        let span = LocatedSpan::new(input);
+        let (_, res) = Expression::parse_span::<VerboseError<_>>(span).unwrap();
+        assert!(
+            res.is_break(),
+            "should have been a break statement, but was {:#?}",
+            res
+        );
+    }
+    #[test]
+    fn test_ident_starting_with_break() {
+        let input = "break_count;";
+        let span = LocatedSpan::new(input);
+        let (_, res) = Expression::parse_span::<VerboseError<_>>(span).unwrap();
+        assert!(
+            !res.is_break(),
+            "should have not been a break statement, but was {:#?}",
+            res
+        );
+        let _ident = res.as_ident_path().unwrap();
     }
 }
