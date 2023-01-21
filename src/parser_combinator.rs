@@ -205,8 +205,7 @@ pub struct Function<'a> {
     function: Span<'a>,
     name: Ident<'a>,
     parameters: Parameters<'a>,
-    arrow: Span<'a>,
-    return_type: IdentPath<'a>,
+    return_type_def: Option<ReturnTypeDefinition<'a>>,
     code_block: CodeBlock<'a>,
 }
 
@@ -221,9 +220,7 @@ impl<'a> FromSpan<'a> for Function<'a> {
         let (s, _) = space_or_comment0(s)?;
         let (s, parameters) = Parameters::parse_span(s)?;
         let (s, _) = space_or_comment0(s)?;
-        let (s, arrow) = tag("~>")(s)?;
-        let (s, _) = space_or_comment0(s)?;
-        let (s, return_type) = IdentPath::parse_span(s)?;
+        let (s, return_type_def) = opt(ReturnTypeDefinition::parse_span)(s)?;
         let (s, _) = space_or_comment0(s)?;
         let (s, code_block) = CodeBlock::parse_span(s)?;
         Ok((
@@ -232,8 +229,7 @@ impl<'a> FromSpan<'a> for Function<'a> {
                 function,
                 name,
                 parameters,
-                arrow,
-                return_type,
+                return_type_def,
                 code_block,
             },
         ))
@@ -249,20 +245,16 @@ impl<'a> Function<'a> {
         &self.name
     }
 
-    pub fn arrow(&self) -> LocatedSpan<&str, ()> {
-        self.arrow
-    }
-
     pub fn code_block(&self) -> &CodeBlock<'a> {
         &self.code_block
     }
 
-    pub fn return_type(&self) -> &IdentPath<'a> {
-        &self.return_type
-    }
-
     pub fn parameters(&self) -> &Parameters<'a> {
         &self.parameters
+    }
+
+    pub fn return_type_def(&self) -> Option<&ReturnTypeDefinition> {
+        self.return_type_def.as_ref()
     }
 }
 
@@ -375,6 +367,34 @@ impl<'a> Parameter<'a> {
 
     pub fn type_def(&self) -> &VariableTypeDefinition<'a> {
         &self.type_def
+    }
+}
+
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct ReturnTypeDefinition<'a> {
+    arrow: Span<'a>,
+    return_type: VariableTypeDefinition<'a>,
+}
+
+impl<'a> ReturnTypeDefinition<'a> {
+    pub fn arrow(&self) -> LocatedSpan<&str, ()> {
+        self.arrow
+    }
+
+    pub fn return_type(&self) -> &VariableTypeDefinition<'a> {
+        &self.return_type
+    }
+}
+
+impl<'a> FromSpan<'a> for ReturnTypeDefinition<'a> {
+    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
+        s: Span<'a>,
+    ) -> IResult<Span, Self, E> {
+        let (s, arrow) = tag("~>")(s)?;
+        let (s, _) = space_or_comment0(s)?;
+        let (s, return_type) = VariableTypeDefinition::parse_span(s).map_err(nom_err2failure)?;
+        let (s, _) = space_or_comment0(s)?;
+        Ok((s, Self { arrow, return_type }))
     }
 }
 
@@ -1250,7 +1270,14 @@ mod tests {
         assert_eq!(1, bs_file.entries().len());
         let bs_function = bs_file.entries()[0].as_function().unwrap();
         assert_eq!("main", <&str>::from(bs_function.name()));
-        assert_eq!("Nothing", &bs_function.return_type().to_string());
+        assert_eq!(
+            "Nothing",
+            &bs_function
+                .return_type_def()
+                .unwrap()
+                .return_type()
+                .to_string()
+        );
     }
 
     #[test]
@@ -1265,7 +1292,14 @@ mod tests {
         assert_eq!(1, bs_file.entries().len());
         let bs_function = bs_file.entries()[0].as_function().unwrap();
         assert_eq!("f", <&str>::from(bs_function.name()));
-        assert_eq!("Nothing", &bs_function.return_type().to_string());
+        assert_eq!(
+            "Nothing",
+            &bs_function
+                .return_type_def()
+                .unwrap()
+                .return_type()
+                .to_string()
+        );
         let params = bs_function.parameters().params();
         assert_eq!(2, params.len());
         let param0 = &params[0];
