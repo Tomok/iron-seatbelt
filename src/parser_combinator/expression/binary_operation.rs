@@ -352,7 +352,7 @@ impl<'s> BinaryOperator<'s> {
             map(tag("-"), Self::Sub),
             map(tag("*"), Self::Mul),
             map(tag("/"), Self::Div),
-            map(tag("%"), Self::Mod),
+            map(tag("mod"), Self::Mod),
             map(tag("and"), Self::And),
             map(tag("or"), Self::Or),
             map(tag("=="), Self::Eq),
