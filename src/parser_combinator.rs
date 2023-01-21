@@ -530,9 +530,7 @@ pub struct IfStatement<'a> {
     if_token: Span<'a>,
     condition: Expression<'a>,
     then_block: CodeBlock<'a>,
-    // todo is else mandatory??
-    else_token: Span<'a>,
-    else_type: ElseType<'a>,
+    else_statement: Option<ElseStatement<'a>>,
 }
 
 impl<'a> FromSpan<'a> for IfStatement<'a> {
@@ -545,10 +543,7 @@ impl<'a> FromSpan<'a> for IfStatement<'a> {
         let (s, _) = space_or_comment0(s)?;
         let (s, then_block) = CodeBlock::parse_span(s).map_err(nom_err2failure)?;
         let (s, _) = space_or_comment0(s)?;
-        let (s, else_token) = tag("else")(s).map_err(nom_err2failure)?;
-        // the multispace is missing here intentionally, as it is mandatory in case of if else
-        // but optional in case of a CodeBlock
-        let (s, else_type) = ElseType::parse_span(s).map_err(nom_err2failure)?;
+        let (s, else_statement) = opt(ElseStatement::parse_span)(s)?;
         let (s, _) = space_or_comment0(s)?;
         Ok((
             s,
@@ -556,6 +551,30 @@ impl<'a> FromSpan<'a> for IfStatement<'a> {
                 if_token,
                 condition,
                 then_block,
+                else_statement,
+            },
+        ))
+    }
+}
+
+#[derive(PartialEq, Eq, Debug)]
+pub struct ElseStatement<'a> {
+    else_token: Span<'a>,
+    else_type: ElseType<'a>,
+}
+
+impl<'a> FromSpan<'a> for ElseStatement<'a> {
+    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
+        s: Span<'a>,
+    ) -> IResult<Span, Self, E> {
+        let (s, else_token) = tag("else")(s)?;
+        // the multispace is missing here intentionally, as it is mandatory in case of if else
+        // but optional in case of a CodeBlock
+        let (s, else_type) = ElseType::parse_span(s).map_err(nom_err2failure)?;
+        let (s, _) = space_or_comment0(s)?;
+        Ok((
+            s,
+            Self {
                 else_token,
                 else_type,
             },
