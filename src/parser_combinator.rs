@@ -1123,7 +1123,7 @@ mod tests {
     //#[case("assignments/test_assignment.bs")]
     #[case("test_empty_main_function.bs")]
     #[case("test_bool_type.bs")]
-    //#[case("test_modulo.bs")]
+    #[case("test_modulo.bs")]
     #[case("subfolder/file.bs")]
     #[case("subfolder/relative_to_import.bs")]
     #[case("test_name_lookup_in_block.bs")]
