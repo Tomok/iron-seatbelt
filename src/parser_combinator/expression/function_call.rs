@@ -83,15 +83,6 @@ pub enum FunctionCallee<'a> {
     FunctionCall(Box<FunctionCall<'a>>),
 }
 
-impl<'a> FromSpan<'a> for FunctionCallee<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
-        //todo: functionCall
-        map(IdentPath::parse_span, Self::IdentPath)(s)
-    }
-}
-
 impl<'a> FunctionCallee<'a> {
     pub fn as_ident_path(&self) -> Option<&IdentPath<'a>> {
         if let Self::IdentPath(v) = self {
