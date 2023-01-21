@@ -39,11 +39,11 @@ impl<'a> FromSpan<'a> for Expression<'a> {
     ) -> IResult<Span, Self, E> {
         alt((
             map(UnaryOperation::parse_span, Self::UnaryOperation),
-            map(IntLiteral::parse_span, Self::IntLiteral),
-            map(CharLiteral::parse_span, Self::CharLiteral),
             map(FunctionCall::parse_span, Self::FunctionCall),
             map(BinaryOperation::parse_span, Self::BinaryOperation),
             map(BracketOperation::parse_span, Self::BracketOperation),
+            map(IntLiteral::parse_span, Self::IntLiteral),
+            map(CharLiteral::parse_span, Self::CharLiteral),
             map(IdentPath::parse_span, Self::IdentPath),
         ))(s)
     }
