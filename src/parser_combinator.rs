@@ -420,6 +420,7 @@ impl<'a> CodeBlock<'a> {
 pub enum Statement<'a> {
     LetStatement(LetStatementWithSemicolon<'a>),
     IfStatement(IfStatement<'a>),
+    Loop(Loop<'a>),
     ForLoop(ForLoop<'a>),
     DoWhileLoop(DoWhileLoop<'a>),
     WhileLoop(WhileLoop<'a>),
@@ -435,6 +436,7 @@ impl<'a> FromSpan<'a> for Statement<'a> {
         let res = alt((
             map(LetStatementWithSemicolon::parse_span, Self::LetStatement),
             map(IfStatement::parse_span, Self::IfStatement),
+            map(Loop::parse_span, Self::Loop),
             map(ForLoop::parse_span, Self::ForLoop),
             map(DoWhileLoop::parse_span, Self::DoWhileLoop),
             map(WhileLoop::parse_span, Self::WhileLoop),
@@ -612,6 +614,28 @@ impl<'a> FromSpan<'a> for ElseType<'a> {
                 |stmt| Self::ElseIf(Box::new(stmt)),
             ),
         ))(s)
+    }
+}
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct Loop<'a> {
+    loop_token: Span<'a>,
+    code_block: CodeBlock<'a>,
+}
+
+impl<'a> FromSpan<'a> for Loop<'a> {
+    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
+        s: Span<'a>,
+    ) -> IResult<Span, Self, E> {
+        let (s, loop_token) = tag("loop")(s)?;
+        let (s, _) = space_or_comment0(s)?;
+        let (s, code_block) = CodeBlock::parse_span(s).map_err(nom_err2failure)?;
+        Ok((
+            s,
+            Self {
+                loop_token,
+                code_block,
+            },
+        ))
     }
 }
 
@@ -1221,7 +1245,7 @@ mod tests {
     //#[case("structs/test_structs_inside_other_structs.bs")]
     //#[case("structs/test_structs_in_namespaces.bs")]
     //#[case("structs/test_pointer_arithmetics_with_arrays_of_structs.bs")]
-    //#[case("test_loop_break_continue.bs")]
+    #[case("test_loop_break_continue.bs")]
     #[case("asserts/test_assert_equals_fails.bs")]
     #[case("asserts/test_assert_fails.bs")]
     #[case("asserts/test_assert_succeeds.bs")]
