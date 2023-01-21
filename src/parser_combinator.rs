@@ -1135,7 +1135,7 @@ mod tests {
     //#[case("pointers/test_cannot_subtract_pointer_from_integer.bs")]
     //#[case("pointers/test_pointer_arithmetics.bs")]
     //#[case("pointers/test_assigning_const_pointer_to_mutable_pointer_fails.bs")]
-    //#[case("import_test_file.bs")]
+    #[case("import_test_file.bs")]
     //#[case("disable_test_regular_nothing.bs")]
     //#[case("structs/test_arrays_of_structs.bs")]
     //#[case("structs/test_structs_inside_other_structs.bs")]
