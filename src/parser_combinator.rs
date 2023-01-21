@@ -1189,7 +1189,7 @@ mod tests {
     //#[case("functions/test_return_result_of_function_call_with_return_type_nothing.bs")]
     //#[case("functions/test_exporting_global_function_fails.bs")]
     //#[case("functions/test_calling_non_exported_function_from_outside_namespace_fails.bs")]
-    //#[case("test_do_while.bs")]
+    #[case("test_do_while.bs")]
     #[case("test_hello_world.bs")]
     #[case("test_inline_bssembly_with_string.bs")]
     #[case("test_if_variable_in_block.bs")]
