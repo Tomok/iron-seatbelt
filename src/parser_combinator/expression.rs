@@ -18,14 +18,18 @@ mod binary_operation;
 pub use binary_operation::{BinaryOperant, BinaryOperation, BinaryOperator};
 
 mod unary_operation;
-pub use unary_operation::{UnaryOperation, UnaryOperator};
+pub use unary_operation::{
+    UnaryOperantRight, UnaryOperationLeft, UnaryOperationRight, UnaryOperatorLeft,
+    UnaryOperatorRight,
+};
 
 mod bracket_operation;
 pub use bracket_operation::BracketOperation;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Expression<'a> {
-    UnaryOperation(UnaryOperation<'a>),
+    UnaryOperationLeft(UnaryOperationLeft<'a>),
+    UnaryOperationRight(UnaryOperationRight<'a>),
     /// an Ident, could be a variable_name or a function name
     FunctionCall(FunctionCall<'a>),
     BinaryOperation(BinaryOperation<'a>),
@@ -38,16 +42,32 @@ pub enum Expression<'a> {
 }
 
 impl<'a> Expression<'a> {
-    /// Returns `true` if the expression is [`UnaryOperation`].
+    /// Returns `true` if the expression is [`UnaryOperationLeft`].
     ///
-    /// [`UnaryOperation`]: Expression::UnaryOperation
+    /// [`UnaryOperationLeft`]: Expression::UnaryOperationLeft
     #[must_use]
-    pub fn is_unary_operation(&self) -> bool {
-        matches!(self, Self::UnaryOperation(..))
+    pub fn is_unary_operation_left(&self) -> bool {
+        matches!(self, Self::UnaryOperationLeft(..))
     }
 
-    pub fn as_unary_operation(&self) -> Option<&UnaryOperation<'a>> {
-        if let Self::UnaryOperation(v) = self {
+    pub fn as_unary_operation_left(&self) -> Option<&UnaryOperationLeft<'a>> {
+        if let Self::UnaryOperationLeft(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    /// Returns `true` if the expression is [`UnaryOperationRight`].
+    ///
+    /// [`UnaryOperationRight`]: Expression::UnaryOperationRight
+    #[must_use]
+    pub fn is_unary_operation_right(&self) -> bool {
+        matches!(self, Self::UnaryOperationRight(..))
+    }
+
+    pub fn as_unary_operation_right(&self) -> Option<&UnaryOperationRight<'a>> {
+        if let Self::UnaryOperationRight(v) = self {
             Some(v)
         } else {
             None
@@ -180,9 +200,10 @@ impl<'a> FromSpan<'a> for Expression<'a> {
         s: Span<'a>,
     ) -> IResult<Span, Self, E> {
         alt((
-            map(UnaryOperation::parse_span, Self::UnaryOperation),
             map(FunctionCall::parse_span, Self::FunctionCall),
             map(BinaryOperation::parse_span, Self::BinaryOperation),
+            map(UnaryOperationLeft::parse_span, Self::UnaryOperationLeft),
+            map(UnaryOperationRight::parse_span, Self::UnaryOperationRight),
             map(BracketOperation::parse_span, Self::BracketOperation),
             map(Continue::parse_span, Self::Continue),
             map(Break::parse_span, Self::Break),

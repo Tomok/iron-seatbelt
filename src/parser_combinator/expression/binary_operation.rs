@@ -9,6 +9,7 @@ use nom_locate::LocatedSpan;
 
 use super::{
     space_or_comment0, BracketOperation, FromSpan, FunctionCall, IdentPath, IntLiteral, Span,
+    UnaryOperationLeft, UnaryOperationRight,
 };
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -108,6 +109,8 @@ impl<'a> BinaryOperation<'a> {
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum BinaryOperant<'a> {
+    UnaryOperationLeft(UnaryOperationLeft<'a>),
+    UnaryOperationRight(UnaryOperationRight<'a>),
     BracketOperation(BracketOperation<'a>),
     FunctionCall(FunctionCall<'a>),
     IntLiteral(IntLiteral<'a>),
@@ -214,6 +217,8 @@ impl<'a> BinaryOperant<'a> {
 impl<'a> From<BinarySequenceOperant<'a>> for BinaryOperant<'a> {
     fn from(value: BinarySequenceOperant<'a>) -> Self {
         match value {
+            BinarySequenceOperant::UnaryOperationLeft(ul) => Self::UnaryOperationLeft(ul),
+            BinarySequenceOperant::UnaryOperationRight(ur) => Self::UnaryOperationRight(ur),
             BinarySequenceOperant::BracketOperation(bo) => Self::BracketOperation(bo),
             BinarySequenceOperant::FunctionCall(fc) => Self::FunctionCall(fc),
             BinarySequenceOperant::IntLiteral(il) => Self::IntLiteral(il),
@@ -406,6 +411,8 @@ impl<'s> BinaryOperator<'s> {
 
 #[derive(Clone, Debug)]
 enum BinarySequenceOperant<'a> {
+    UnaryOperationLeft(UnaryOperationLeft<'a>),
+    UnaryOperationRight(UnaryOperationRight<'a>),
     BracketOperation(BracketOperation<'a>),
     FunctionCall(FunctionCall<'a>),
     IntLiteral(IntLiteral<'a>),
@@ -417,6 +424,8 @@ impl<'a> FromSpan<'a> for BinarySequenceOperant<'a> {
         s: Span<'a>,
     ) -> IResult<Span, Self, E> {
         alt((
+            map(UnaryOperationLeft::parse_span, Self::UnaryOperationLeft),
+            map(UnaryOperationRight::parse_span, Self::UnaryOperationRight),
             map(BracketOperation::parse_span, Self::BracketOperation),
             map(FunctionCall::parse_span, Self::FunctionCall),
             map(IntLiteral::parse_span, Self::IntLiteral),
