@@ -24,12 +24,12 @@ pub use bracket_operation::BracketOperation;
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Expression<'a> {
     UnaryOperation(UnaryOperation<'a>),
-    IntLiteral(IntLiteral<'a>),
-    CharLiteral(CharLiteral<'a>),
     /// an Ident, could be a variable_name or a function name
     FunctionCall(FunctionCall<'a>),
     BinaryOperation(BinaryOperation<'a>),
     BracketOperation(BracketOperation<'a>),
+    IntLiteral(IntLiteral<'a>),
+    CharLiteral(CharLiteral<'a>),
     IdentPath(IdentPath<'a>),
 }
 
