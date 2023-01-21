@@ -374,13 +374,13 @@ impl<'s> BinaryOperator<'s> {
             | BinaryOperator::Div(_)
             | BinaryOperator::Mod(_)
             | BinaryOperator::And(_)
-            | BinaryOperator::Or(_) => BinaryOperationAssociativity::LeftToRight,
-            BinaryOperator::Eq(_)
+            | BinaryOperator::Or(_)
+            | BinaryOperator::Eq(_)
             | BinaryOperator::Neq(_)
             | BinaryOperator::Le(_)
             | BinaryOperator::Ge(_)
             | BinaryOperator::Lt(_)
-            | BinaryOperator::Gt(_) => BinaryOperationAssociativity::RequireParentheses,
+            | BinaryOperator::Gt(_) => BinaryOperationAssociativity::LeftToRight,
             BinaryOperator::Assign(_) => BinaryOperationAssociativity::RightToLeft,
         }
     }
