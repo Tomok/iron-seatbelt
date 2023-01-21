@@ -68,8 +68,6 @@ impl<'a> BinaryOperation<'a> {
         }
         let (left_operators, mid_right_operators) = operators.split_at(weakest_operator_idx);
         let (left_operants, right_operants) = operants.split_at(weakest_operator_idx + 1);
-        dbg!((&left_operators, &mid_right_operators));
-        dbg!((&left_operants, &right_operants));
         let rhs = if mid_right_operators.is_empty() {
             assert_eq!(1, right_operants.len());
             Box::new(right_operants[0].clone().into())
