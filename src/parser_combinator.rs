@@ -733,7 +733,7 @@ impl<'a> FromSpan<'a> for DoWhileLoop<'a> {
         let (s, code_block) = CodeBlock::parse_span(s).map_err(nom_err2failure)?;
         let (s, _) = space_or_comment0(s)?;
         let (s, while_token) = tag("while")(s).map_err(nom_err2failure)?;
-        let (s, _) = space_or_comment0(s)?;
+        let (s, _) = space_or_comment1(s)?;
         let (s, condition) = Expression::parse_span(s).map_err(nom_err2failure)?;
         let (s, _) = space_or_comment0(s)?;
         let (s, semicolon) = tag(";")(s).map_err(nom_err2failure)?;
