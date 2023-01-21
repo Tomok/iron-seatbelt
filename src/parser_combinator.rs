@@ -1160,7 +1160,7 @@ mod tests {
     //#[case("test_size_of_expressions_and_types.bs")]
     //#[case("test_while.bs")]
     //#[case("test_u32_equality.bs")]
-    //#[case("test_relational_operators.bs")]
+    #[case("test_relational_operators.bs")]
     #[case("test_bool_operations.bs")]
     #[case("test_boolean_not.bs")]
     #[case("functions/test_no_main_function_fails.bs")]
