@@ -2,9 +2,9 @@ use std::fmt::Display;
 
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_while, take_while1},
+    bytes::complete::{is_not, tag, take_while, take_while1},
     character::complete::{anychar, digit1, hex_digit1, multispace1, one_of},
-    combinator::{all_consuming, map, opt},
+    combinator::{all_consuming, map, opt, verify},
     error::{context, ContextError, Error, ErrorKind, ParseError, VerboseError},
     multi::{many0, many1},
     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
@@ -16,6 +16,8 @@ use nom::character::complete::char as char_tag; //redefine to avoid confusion wi
 
 pub mod expression;
 use expression::Expression;
+
+mod bssembly;
 
 type Span<'a> = LocatedSpan<&'a str>;
 trait FromSpan<'a> {
@@ -421,7 +423,7 @@ pub enum Statement<'a> {
     ForLoop(ForLoop<'a>),
     CodeBlock(CodeBlock<'a>),
     Expression(ExpressionWithSemicolon<'a>),
-    //InlineBssembly(InlineBssembly<'a>),
+    InlineBssembly(bssembly::BssemblyBlock<'a>),
 }
 
 impl<'a> FromSpan<'a> for Statement<'a> {
@@ -434,7 +436,7 @@ impl<'a> FromSpan<'a> for Statement<'a> {
             map(ForLoop::parse_span, Self::ForLoop),
             map(CodeBlock::parse_span, Self::CodeBlock),
             map(ExpressionWithSemicolon::parse_span, Self::Expression),
-            //todo map(InlineBssembly::parse_span, Self::InlineBssembly),
+            map(bssembly::BssemblyBlock::parse_span, Self::InlineBssembly),
         ))(s)?;
         Ok(res)
     }
@@ -868,6 +870,61 @@ impl<'a> FromSpan<'a> for CharLiteral<'a> {
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
+pub struct StringLiteral<'a> {
+    opening_quote: Span<'a>,
+    text: Vec<StringFragment<'a>>, //todo ... replace for escaped characters
+    closing_quote: Span<'a>,
+}
+
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub enum StringFragment<'a> {
+    Literal(Span<'a>),
+    Escaped {
+        backslash: Span<'a>,
+        escaped_char: char, //todo safe span
+    },
+}
+
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct EscapedStringChar {}
+
+impl<'a> FromSpan<'a> for StringFragment<'a> {
+    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
+        s: Span<'a>,
+    ) -> IResult<Span, Self, E> {
+        let not_quote_slash = is_not("\"\\");
+        alt((
+            map(
+                verify(not_quote_slash, |s: &Span<'a>| !s.fragment().is_empty()),
+                Self::Literal,
+            ),
+            map(
+                tuple((tag("\\"), one_of("t\\nvfr0\""))),
+                |(backslash, escaped_char)| Self::Escaped {
+                    backslash,
+                    escaped_char,
+                },
+            ),
+        ))(s)
+    }
+}
+
+impl<'a> FromSpan<'a> for StringLiteral<'a> {
+    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
+        s: Span<'a>,
+    ) -> IResult<Span, Self, E> {
+        map(
+            tuple((tag("\""), many0(StringFragment::parse_span), tag("\""))),
+            |(opening_quote, text, closing_quote)| Self {
+                opening_quote,
+                text,
+                closing_quote,
+            },
+        )(s)
+    }
+}
+
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum SingleCharacterDefinition {
     /// a single, not escaped character
     SimpleChar(char),
@@ -1115,7 +1172,7 @@ mod tests {
     //#[case("functions/test_calling_non_exported_function_from_outside_namespace_fails.bs")]
     //#[case("test_do_while.bs")]
     #[case("test_hello_world.bs")]
-    //#[case("test_inline_bssembly_with_string.bs")]
+    #[case("test_inline_bssembly_with_string.bs")]
     //#[case("test_if_variable_in_block.bs")]
     #[case("test_for.bs")]
     #[case("integer_literals/test_integer_literal_binary_too_big.bs")]

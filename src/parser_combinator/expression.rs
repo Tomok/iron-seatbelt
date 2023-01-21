@@ -6,7 +6,7 @@ use nom::{
 };
 use nom_locate::LocatedSpan;
 
-use super::{space_or_comment0, CharLiteral, FromSpan, IdentPath, IntLiteral, Span};
+use super::{space_or_comment0, CharLiteral, FromSpan, Ident, IdentPath, IntLiteral, Span};
 
 mod function_call;
 pub use function_call::{
