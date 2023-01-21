@@ -6,7 +6,7 @@ use nom::{
 };
 use nom_locate::LocatedSpan;
 
-use super::{space_or_comment0, CharLiteral, FromSpan, IdentPath, IntLiteral, Span};
+use super::{space_or_comment0, CharLiteral, FromSpan, Ident, IdentPath, IntLiteral, Span};
 
 mod function_call;
 pub use function_call::{
@@ -17,6 +17,9 @@ pub use binary_operation::{BinaryOperant, BinaryOperation, BinaryOperator};
 
 mod bracket_operation;
 pub use bracket_operation::BracketOperation;
+
+mod bssembly;
+pub use bssembly::*;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Expression<'a> {
