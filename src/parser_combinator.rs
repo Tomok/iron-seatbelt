@@ -379,7 +379,7 @@ impl<'a> Parameter<'a> {
 }
 
 /// a code block surrounded by `{}`
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct CodeBlock<'a> {
     open_curly_brace: Span<'a>,
     statements: Vec<Statement<'a>>,
@@ -416,7 +416,7 @@ impl<'a> CodeBlock<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Statement<'a> {
     LetStatement(LetStatementWithSemicolon<'a>),
     IfStatement(IfStatement<'a>),
@@ -442,7 +442,7 @@ impl<'a> FromSpan<'a> for Statement<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ExpressionWithSemicolon<'a> {
     expression: Option<Expression<'a>>,
     semicolon: Span<'a>,
@@ -462,7 +462,7 @@ impl<'a> FromSpan<'a> for ExpressionWithSemicolon<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct LetStatement<'a> {
     let_token: Span<'a>,
     variable_name: Ident<'a>,
@@ -505,7 +505,7 @@ impl<'a> FromSpan<'a> for LetStatement<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct LetStatementWithSemicolon<'a> {
     let_statment: LetStatement<'a>,
     semicolon: Span<'a>,
@@ -525,7 +525,7 @@ impl<'a> FromSpan<'a> for LetStatementWithSemicolon<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct IfStatement<'a> {
     if_token: Span<'a>,
     condition: Expression<'a>,
@@ -557,7 +557,7 @@ impl<'a> FromSpan<'a> for IfStatement<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ElseStatement<'a> {
     else_token: Span<'a>,
     else_type: ElseType<'a>,
@@ -582,7 +582,7 @@ impl<'a> FromSpan<'a> for ElseStatement<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum ElseType<'a> {
     /// just a CodeBlock (`{...}`)
     Normal(CodeBlock<'a>),
@@ -611,7 +611,7 @@ impl<'a> FromSpan<'a> for ElseType<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ForLoop<'a> {
     for_token: Span<'a>,
     params: ForLoopKind<'a>,
@@ -638,7 +638,7 @@ impl<'a> FromSpan<'a> for ForLoop<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum ForLoopKind<'a> {
     /// for loop with `()` around the parameters
     WithBraces {
@@ -678,7 +678,7 @@ impl<'a> FromSpan<'a> for ForLoopKind<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ForLoopParams<'a> {
     start_assignment: Option<LetStatement<'a>>,
     semicolon1: Span<'a>,
