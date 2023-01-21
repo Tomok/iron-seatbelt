@@ -340,7 +340,7 @@ impl<'a> Parameters<'a> {
 pub struct Parameter<'a> {
     name: Ident<'a>,
     colon: Span<'a>,
-    typ: IdentPath<'a>,
+    type_def: VariableTypeDefinition<'a>,
     /// the `,` following the parameter, if it exists
     comma: Option<Span<'a>>,
 }
@@ -353,7 +353,7 @@ impl<'a> FromSpan<'a> for Parameter<'a> {
         let (s, _) = space_or_comment0(s)?;
         let (s, colon) = tag(":")(s)?;
         let (s, _) = space_or_comment0(s)?;
-        let (s, typ) = IdentPath::parse_span(s)?;
+        let (s, type_def) = VariableTypeDefinition::parse_span(s)?;
         let (s, _) = space_or_comment0(s)?;
         let (s, comma) = opt(tag(","))(s)?;
         let (s, _) = space_or_comment0(s)?;
@@ -362,7 +362,7 @@ impl<'a> FromSpan<'a> for Parameter<'a> {
             Self {
                 name,
                 colon,
-                typ,
+                type_def,
                 comma,
             },
         ))
@@ -373,8 +373,8 @@ impl<'a> Parameter<'a> {
         &self.name
     }
 
-    pub fn typ(&self) -> &IdentPath<'a> {
-        &self.typ
+    pub fn type_def(&self) -> &VariableTypeDefinition<'a> {
+        &self.type_def
     }
 }
 
@@ -519,6 +519,31 @@ pub enum VariableTypeDefinition<'a> {
         pointer: Span<'a>,
         inner: Box<VariableTypeDefinition<'a>>,
     },
+}
+
+impl<'a> VariableTypeDefinition<'a> {
+    pub fn mutable<'b>(&'b self) -> Option<&'b Span<'a>> {
+        match self {
+            VariableTypeDefinition::Ident { mutable, .. }
+            | VariableTypeDefinition::Pointer { mutable, .. } => mutable.as_ref(),
+        }
+    }
+}
+
+impl<'a> std::fmt::Display for VariableTypeDefinition<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.mutable().is_some() {
+            write!(f, "mutable ")?;
+        }
+        match self {
+            VariableTypeDefinition::Ident { mutable: _, ident } => write!(f, "{}", ident),
+            VariableTypeDefinition::Pointer {
+                mutable: _,
+                pointer: _,
+                inner,
+            } => write!(f, "->{}", inner),
+        }
+    }
 }
 
 impl<'a> FromSpan<'a> for VariableTypeDefinition<'a> {
@@ -1245,10 +1270,10 @@ mod tests {
         assert_eq!(2, params.len());
         let param0 = &params[0];
         assert_eq!("a", <&str>::from(param0.name()));
-        assert_eq!("U32", &param0.typ().to_string());
+        assert_eq!("U32", &param0.type_def().to_string());
         let param1 = &params[1];
         assert_eq!("b", <&str>::from(param1.name()));
-        assert_eq!("U32", &param1.typ().to_string());
+        assert_eq!("U32", &param1.type_def().to_string());
     }
 
     #[rstest]
@@ -1269,7 +1294,7 @@ mod tests {
     //#[case("test_no_implicit_const_cast.bs")]
     //#[case("test_order_of_evaluation_in_nested_call.bs")]
     //#[case("pointers/test_dereferencing_bool_pointer.bs")]
-    //#[case("pointers/test_pointer_usage.bs")]
+    #[case("pointers/test_pointer_usage.bs")]
     //#[case("pointers/test_cannot_subtract_pointer_from_integer.bs")]
     //#[case("pointers/test_pointer_arithmetics.bs")]
     //#[case("pointers/test_assigning_const_pointer_to_mutable_pointer_fails.bs")]
