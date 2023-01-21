@@ -176,16 +176,36 @@ where
 {
     fn from(value: InvalidOpcode<'a>) -> Self {
         use nom::error::*;
-        //todo: add context? or alternatives via E::or
         let e = E::from_error_kind(value.0, ErrorKind::Alt);
         nom::Err::Error(e)
     }
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub enum InvalidCommand<'a, 's> {
-    UnknownParameterSet(&'s Operation<'a>),
-    InvalidOpcode(InvalidOpcode<'a>),
+pub enum InvalidCommand<'a> {
+    UnknownParameterSet(Operation<'a>),
+}
+
+impl<'a, E> From<InvalidCommand<'a>> for nom::Err<E>
+where
+    E: nom::error::ParseError<nom_locate::LocatedSpan<&'a str>>
+        + nom::error::ContextError<nom_locate::LocatedSpan<&'a str>>,
+{
+    fn from(value: InvalidCommand<'a>) -> Self {
+        use nom::error::*;
+        //todo: add context? or alternatives via E::or
+        match value {
+            InvalidCommand::UnknownParameterSet(value) => {
+                let e = E::from_error_kind(*value.opcode.span(), ErrorKind::Verify);
+                let e = E::add_context(
+                    *value.opcode.span(), //todo idealy this should span value.parameters
+                    "Unkown Parameters for bssembly operation",
+                    e,
+                );
+                nom::Err::Error(e)
+            }
+        }
+    }
 }
 
 /// takes all command definitions in the form `<command> VARIANTS { <VariantName> {<StructLike field definitions>},}`
@@ -232,6 +252,14 @@ macro_rules! commands {
                 [<$cmd:camel>](Span<'a>),
             )+}
 
+            impl<'a> Opcode<'a>{
+                pub fn span<'b>(&'b self) -> &'b Span<'a> {
+                    match self {$(
+                        Self::[<$cmd:camel>](s) => s,
+                    )+}
+                }
+            }
+
             impl<'a> TryFrom<Span<'a>> for Opcode<'a> {
                 type Error = InvalidOpcode<'a>;
 
@@ -243,13 +271,10 @@ macro_rules! commands {
                 }
             }
 
-            impl<'a, 's> TryFrom<&'s Operation<'a>> for Command<'a>
-            where
-                's: 'a,
-            {
-                type Error = InvalidCommand<'a, 's>;
+            impl<'a> TryFrom<Operation<'a>> for Command<'a>  {
+                type Error = InvalidCommand<'a>;
 
-                fn try_from(value: &'s Operation<'a>) -> Result<Self, Self::Error> {
+                fn try_from(value: Operation<'a>) -> Result<Self, Self::Error> {
                     type Ope<'o> = OperationParameterEntry<'o>;
                     use OperationParameter::*;
                     let opcode = &value.opcode;
@@ -310,6 +335,18 @@ impl<'a> FromSpan<'a> for Opcode<'a> {
         let (s, _) = peek(alt((multispace1, eof)))(s)?;
         let opcode = Opcode::try_from(opcode_span)?;
         Ok((s, opcode))
+    }
+}
+
+impl<'a> FromSpan<'a> for Command<'a> {
+    fn parse_span<
+        E: nom::error::ParseError<nom_locate::LocatedSpan<&'a str>>
+            + nom::error::ContextError<nom_locate::LocatedSpan<&'a str>>,
+    >(
+        s: Span<'a>,
+    ) -> nom::IResult<Span, Self, E> {
+        let (s, operation) = Operation::parse_span(s)?;
+        Ok((s, Command::try_from(operation)?))
     }
 }
 
@@ -544,6 +581,6 @@ mod tests {
         let span = nom_locate::LocatedSpan::new(input);
         let (_, operation) =
             all_consuming::<_, _, VerboseError<_>, _>(Operation::parse_span)(span).unwrap();
-        let _command = Command::try_from(&operation).unwrap();
+        let _command = Command::try_from(operation).unwrap();
     }
 }
