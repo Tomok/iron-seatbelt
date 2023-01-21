@@ -29,6 +29,7 @@ pub enum Expression<'a> {
     /// an Ident, could be a variable_name or a function name
     FunctionCall(FunctionCall<'a>),
     BinaryOperation(BinaryOperation<'a>),
+    BracketOperation(BracketOperation<'a>),
     IdentPath(IdentPath<'a>),
 }
 
@@ -42,6 +43,7 @@ impl<'a> FromSpan<'a> for Expression<'a> {
             map(CharLiteral::parse_span, Self::CharLiteral),
             map(FunctionCall::parse_span, Self::FunctionCall),
             map(BinaryOperation::parse_span, Self::BinaryOperation),
+            map(BracketOperation::parse_span, Self::BracketOperation),
             map(IdentPath::parse_span, Self::IdentPath),
         ))(s)
     }
