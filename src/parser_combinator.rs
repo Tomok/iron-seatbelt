@@ -379,7 +379,7 @@ impl<'a> Parameter<'a> {
 }
 
 /// a code block surrounded by `{}`
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct CodeBlock<'a> {
     open_curly_brace: Span<'a>,
     statements: Vec<Statement<'a>>,
@@ -416,11 +416,14 @@ impl<'a> CodeBlock<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Statement<'a> {
     LetStatement(LetStatementWithSemicolon<'a>),
     IfStatement(IfStatement<'a>),
+    Loop(Loop<'a>),
     ForLoop(ForLoop<'a>),
+    DoWhileLoop(DoWhileLoop<'a>),
+    WhileLoop(WhileLoop<'a>),
     CodeBlock(CodeBlock<'a>),
     Expression(ExpressionWithSemicolon<'a>),
     InlineBssembly(bssembly::BssemblyBlock<'a>),
@@ -433,7 +436,10 @@ impl<'a> FromSpan<'a> for Statement<'a> {
         let res = alt((
             map(LetStatementWithSemicolon::parse_span, Self::LetStatement),
             map(IfStatement::parse_span, Self::IfStatement),
+            map(Loop::parse_span, Self::Loop),
             map(ForLoop::parse_span, Self::ForLoop),
+            map(DoWhileLoop::parse_span, Self::DoWhileLoop),
+            map(WhileLoop::parse_span, Self::WhileLoop),
             map(CodeBlock::parse_span, Self::CodeBlock),
             map(ExpressionWithSemicolon::parse_span, Self::Expression),
             map(bssembly::BssemblyBlock::parse_span, Self::InlineBssembly),
@@ -442,7 +448,7 @@ impl<'a> FromSpan<'a> for Statement<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ExpressionWithSemicolon<'a> {
     expression: Option<Expression<'a>>,
     semicolon: Span<'a>,
@@ -462,7 +468,7 @@ impl<'a> FromSpan<'a> for ExpressionWithSemicolon<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct LetStatement<'a> {
     let_token: Span<'a>,
     variable_name: Ident<'a>,
@@ -505,7 +511,7 @@ impl<'a> FromSpan<'a> for LetStatement<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct LetStatementWithSemicolon<'a> {
     let_statment: LetStatement<'a>,
     semicolon: Span<'a>,
@@ -525,7 +531,7 @@ impl<'a> FromSpan<'a> for LetStatementWithSemicolon<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct IfStatement<'a> {
     if_token: Span<'a>,
     condition: Expression<'a>,
@@ -557,7 +563,7 @@ impl<'a> FromSpan<'a> for IfStatement<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ElseStatement<'a> {
     else_token: Span<'a>,
     else_type: ElseType<'a>,
@@ -582,7 +588,7 @@ impl<'a> FromSpan<'a> for ElseStatement<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum ElseType<'a> {
     /// just a CodeBlock (`{...}`)
     Normal(CodeBlock<'a>),
@@ -610,8 +616,30 @@ impl<'a> FromSpan<'a> for ElseType<'a> {
         ))(s)
     }
 }
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct Loop<'a> {
+    loop_token: Span<'a>,
+    code_block: CodeBlock<'a>,
+}
 
-#[derive(PartialEq, Eq, Debug)]
+impl<'a> FromSpan<'a> for Loop<'a> {
+    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
+        s: Span<'a>,
+    ) -> IResult<Span, Self, E> {
+        let (s, loop_token) = tag("loop")(s)?;
+        let (s, _) = space_or_comment0(s)?;
+        let (s, code_block) = CodeBlock::parse_span(s).map_err(nom_err2failure)?;
+        Ok((
+            s,
+            Self {
+                loop_token,
+                code_block,
+            },
+        ))
+    }
+}
+
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ForLoop<'a> {
     for_token: Span<'a>,
     params: ForLoopKind<'a>,
@@ -638,7 +666,7 @@ impl<'a> FromSpan<'a> for ForLoop<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum ForLoopKind<'a> {
     /// for loop with `()` around the parameters
     WithBraces {
@@ -678,7 +706,7 @@ impl<'a> FromSpan<'a> for ForLoopKind<'a> {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ForLoopParams<'a> {
     start_assignment: Option<LetStatement<'a>>,
     semicolon1: Span<'a>,
@@ -713,10 +741,67 @@ impl<'a> FromSpan<'a> for ForLoopParams<'a> {
     }
 }
 
-/*#[derive(PartialEq, Eq, Debug)]
-pub struct InlineBssembly<'s> {
-    //todo
-}*/
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct DoWhileLoop<'a> {
+    do_token: Span<'a>,
+    code_block: CodeBlock<'a>,
+    while_token: Span<'a>,
+    condition: Expression<'a>,
+    semicolon: Span<'a>,
+}
+
+impl<'a> FromSpan<'a> for DoWhileLoop<'a> {
+    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
+        s: Span<'a>,
+    ) -> IResult<Span, Self, E> {
+        let (s, do_token) = tag("do")(s)?;
+        let (s, _) = space_or_comment0(s)?;
+        let (s, code_block) = CodeBlock::parse_span(s).map_err(nom_err2failure)?;
+        let (s, _) = space_or_comment0(s)?;
+        let (s, while_token) = tag("while")(s).map_err(nom_err2failure)?;
+        let (s, _) = space_or_comment1(s)?;
+        let (s, condition) = Expression::parse_span(s).map_err(nom_err2failure)?;
+        let (s, _) = space_or_comment0(s)?;
+        let (s, semicolon) = tag(";")(s).map_err(nom_err2failure)?;
+        Ok((
+            s,
+            Self {
+                do_token,
+                code_block,
+                while_token,
+                condition,
+                semicolon,
+            },
+        ))
+    }
+}
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct WhileLoop<'a> {
+    while_token: Span<'a>,
+    condition: Expression<'a>,
+    code_block: CodeBlock<'a>,
+}
+
+impl<'a> FromSpan<'a> for WhileLoop<'a> {
+    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
+        s: Span<'a>,
+    ) -> IResult<Span, Self, E> {
+        let (s, while_token) = tag("while")(s)?;
+        let (s, _) = space_or_comment1(s).map_err(nom_err2failure)?;
+        let (s, condition) = Expression::parse_span(s).map_err(nom_err2failure)?;
+        let (s, _) = space_or_comment0(s)?;
+        let (s, code_block) = CodeBlock::parse_span(s).map_err(nom_err2failure)?;
+        let (s, _) = space_or_comment0(s)?;
+        Ok((
+            s,
+            Self {
+                while_token,
+                code_block,
+                condition,
+            },
+        ))
+    }
+}
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum IntLiteral<'a> {
@@ -1160,7 +1245,7 @@ mod tests {
     //#[case("structs/test_structs_inside_other_structs.bs")]
     //#[case("structs/test_structs_in_namespaces.bs")]
     //#[case("structs/test_pointer_arithmetics_with_arrays_of_structs.bs")]
-    //#[case("test_loop_break_continue.bs")]
+    #[case("test_loop_break_continue.bs")]
     #[case("asserts/test_assert_equals_fails.bs")]
     #[case("asserts/test_assert_fails.bs")]
     #[case("asserts/test_assert_succeeds.bs")]
@@ -1177,7 +1262,7 @@ mod tests {
     //#[case("nothing/test_nothing_as_function_parameter.bs")]
     //#[case("test_shadowing.bs")]
     //#[case("test_size_of_expressions_and_types.bs")]
-    //#[case("test_while.bs")]
+    #[case("test_while.bs")]
     //#[case("test_u32_equality.bs")]
     #[case("test_relational_operators.bs")]
     #[case("test_bool_operations.bs")]
@@ -1189,7 +1274,7 @@ mod tests {
     //#[case("functions/test_return_result_of_function_call_with_return_type_nothing.bs")]
     //#[case("functions/test_exporting_global_function_fails.bs")]
     //#[case("functions/test_calling_non_exported_function_from_outside_namespace_fails.bs")]
-    //#[case("test_do_while.bs")]
+    #[case("test_do_while.bs")]
     #[case("test_hello_world.bs")]
     #[case("test_inline_bssembly_with_string.bs")]
     #[case("test_if_variable_in_block.bs")]
