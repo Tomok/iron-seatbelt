@@ -473,8 +473,7 @@ pub struct LetStatement<'a> {
     let_token: Span<'a>,
     variable_name: Ident<'a>,
     colon: Span<'a>,
-    mutable: Option<Span<'a>>,
-    typ: IdentPath<'a>,
+    type_def: VariableTypeDefinition<'a>,
     equals: Span<'a>,
     assignment: Expression<'a>,
 }
@@ -489,9 +488,7 @@ impl<'a> FromSpan<'a> for LetStatement<'a> {
         let (s, _) = space_or_comment0(s)?;
         let (s, colon) = tag(":")(s).map_err(nom_err2failure)?;
         let (s, _) = space_or_comment0(s)?;
-        let (s, mutable) =
-            opt(terminated(tag("mutable"), space_or_comment1))(s).map_err(nom_err2failure)?;
-        let (s, typ) = IdentPath::parse_span(s).map_err(nom_err2failure)?;
+        let (s, type_def) = VariableTypeDefinition::parse_span(s).map_err(nom_err2failure)?;
         let (s, _) = space_or_comment0(s)?;
         let (s, equals) = tag("=")(s).map_err(nom_err2failure)?;
         let (s, _) = space_or_comment0(s)?;
@@ -502,8 +499,7 @@ impl<'a> FromSpan<'a> for LetStatement<'a> {
                 let_token,
                 variable_name,
                 colon,
-                mutable,
-                typ,
+                type_def,
                 equals,
                 assignment,
             },
@@ -511,6 +507,44 @@ impl<'a> FromSpan<'a> for LetStatement<'a> {
     }
 }
 
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub enum VariableTypeDefinition<'a> {
+    Ident {
+        mutable: Option<Span<'a>>,
+        ident: IdentPath<'a>,
+    },
+    Pointer {
+        mutable: Option<Span<'a>>,
+        /// `=>`
+        pointer: Span<'a>,
+        inner: Box<VariableTypeDefinition<'a>>,
+    },
+}
+
+impl<'a> FromSpan<'a> for VariableTypeDefinition<'a> {
+    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
+        s: Span<'a>,
+    ) -> IResult<Span, Self, E> {
+        let (s, mutable) = opt(terminated(tag("mutable"), space_or_comment1))(s)?;
+        let (s, _) = space_or_comment0(s)?;
+        let (s, pointer) = opt(tag("->"))(s)?;
+        if let Some(pointer) = pointer {
+            let (s, inner) = VariableTypeDefinition::parse_span(s).map_err(nom_err2failure)?;
+            let inner = Box::new(inner);
+            Ok((
+                s,
+                Self::Pointer {
+                    mutable,
+                    pointer,
+                    inner,
+                },
+            ))
+        } else {
+            let (s, ident) = IdentPath::parse_span(s).map_err(nom_err2failure)?;
+            Ok((s, Self::Ident { mutable, ident }))
+        }
+    }
+}
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct LetStatementWithSemicolon<'a> {
     let_statment: LetStatement<'a>,
