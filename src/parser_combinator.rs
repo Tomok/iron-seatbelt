@@ -421,6 +421,7 @@ pub enum Statement<'a> {
     LetStatement(LetStatementWithSemicolon<'a>),
     IfStatement(IfStatement<'a>),
     ForLoop(ForLoop<'a>),
+    DoWhileLoop(DoWhileLoop<'a>),
     CodeBlock(CodeBlock<'a>),
     Expression(ExpressionWithSemicolon<'a>),
     InlineBssembly(bssembly::BssemblyBlock<'a>),
@@ -434,6 +435,7 @@ impl<'a> FromSpan<'a> for Statement<'a> {
             map(LetStatementWithSemicolon::parse_span, Self::LetStatement),
             map(IfStatement::parse_span, Self::IfStatement),
             map(ForLoop::parse_span, Self::ForLoop),
+            map(DoWhileLoop::parse_span, Self::DoWhileLoop),
             map(CodeBlock::parse_span, Self::CodeBlock),
             map(ExpressionWithSemicolon::parse_span, Self::Expression),
             map(bssembly::BssemblyBlock::parse_span, Self::InlineBssembly),
@@ -713,10 +715,40 @@ impl<'a> FromSpan<'a> for ForLoopParams<'a> {
     }
 }
 
-/*#[derive(PartialEq, Eq, Debug)]
-pub struct InlineBssembly<'s> {
-    //todo
-}*/
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct DoWhileLoop<'a> {
+    do_token: Span<'a>,
+    code_block: CodeBlock<'a>,
+    while_token: Span<'a>,
+    condition: Expression<'a>,
+    semicolon: Span<'a>,
+}
+
+impl<'a> FromSpan<'a> for DoWhileLoop<'a> {
+    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
+        s: Span<'a>,
+    ) -> IResult<Span, Self, E> {
+        let (s, do_token) = tag("do")(s)?;
+        let (s, _) = space_or_comment0(s)?;
+        let (s, code_block) = CodeBlock::parse_span(s).map_err(nom_err2failure)?;
+        let (s, _) = space_or_comment0(s)?;
+        let (s, while_token) = tag("while")(s).map_err(nom_err2failure)?;
+        let (s, _) = space_or_comment0(s)?;
+        let (s, condition) = Expression::parse_span(s).map_err(nom_err2failure)?;
+        let (s, _) = space_or_comment0(s)?;
+        let (s, semicolon) = tag(";")(s).map_err(nom_err2failure)?;
+        Ok((
+            s,
+            Self {
+                do_token,
+                code_block,
+                while_token,
+                condition,
+                semicolon,
+            },
+        ))
+    }
+}
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum IntLiteral<'a> {
