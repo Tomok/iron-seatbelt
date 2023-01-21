@@ -3,16 +3,149 @@ use nom::{
     bytes::complete::{tag, tag_no_case, take_while1},
     character::{
         self,
-        complete::{line_ending, multispace1, space0, space1},
+        complete::{line_ending, multispace0, multispace1, space0, space1},
     },
     combinator::{eof, map, opt, peek},
     multi::{many0, many1},
-    sequence::preceded,
+    sequence::{delimited, preceded, terminated},
     AsChar,
 };
 use paste::paste;
 
+use crate::parser_combinator::{space_or_comment0, Comment, StringLiteral};
+
 use super::{FromSpan, Ident, IntLiteral, Span};
+
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct BssemblyBlock<'a> {
+    bsm: Span<'a>,
+    open_curly_brace: Span<'a>,
+    code: BssemblyCode<'a>,
+    closing_curly_brace: Span<'a>,
+}
+
+impl<'a> FromSpan<'a> for BssemblyBlock<'a> {
+    fn parse_span<
+        E: nom::error::ParseError<nom_locate::LocatedSpan<&'a str>>
+            + nom::error::ContextError<nom_locate::LocatedSpan<&'a str>>,
+    >(
+        s: Span<'a>,
+    ) -> nom::IResult<Span, Self, E> {
+        let (s, bsm) = tag("bsm")(s)?;
+        let (s, _) = space_or_comment0(s)?;
+        let (s, open_curly_brace) = tag("{")(s)?;
+        let (s, _) = space_or_comment0(s)?;
+        let (s, code) = BssemblyCode::parse_span(s)?;
+        let (s, _) = space_or_comment0(s)?;
+        let (s, closing_curly_brace) = tag("}")(s)?;
+        Ok((
+            s,
+            Self {
+                bsm,
+                open_curly_brace,
+                code,
+                closing_curly_brace,
+            },
+        ))
+    }
+}
+
+/// a sequence of [BssemblyExpression]s when parsing this supports comments, but they are not
+/// preserved
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct BssemblyCode<'a> {
+    expressions: Vec<BssemblyExpression<'a>>,
+}
+
+fn comment_or_line_end_or_eof<'a, E>(s: Span<'a>) -> nom::IResult<Span<'a>, (), E>
+where
+    E: nom::error::ParseError<nom_locate::LocatedSpan<&'a str>>
+        + nom::error::ContextError<nom_locate::LocatedSpan<&'a str>>,
+{
+    alt((
+        map(Comment::parse_span, |_| ()),
+        map(line_ending, |_| ()),
+        map(eof, |_| ()),
+    ))(s)
+}
+
+impl<'a> FromSpan<'a> for BssemblyCode<'a> {
+    fn parse_span<
+        E: nom::error::ParseError<nom_locate::LocatedSpan<&'a str>>
+            + nom::error::ContextError<nom_locate::LocatedSpan<&'a str>>,
+    >(
+        s: Span<'a>,
+    ) -> nom::IResult<Span, Self, E> {
+        let (s, _) = space_or_comment0(s)?;
+        let (s, expressions) = many0(terminated(
+            BssemblyExpression::parse_span,
+            delimited(space0, comment_or_line_end_or_eof, multispace0),
+        ))(s)?;
+        Ok((s, Self { expressions }))
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub enum BssemblyExpression<'a> {
+    Label(Label<'a>),
+    StringDef(StringDef<'a>),
+    Operation(Operation<'a>),
+}
+
+impl<'a> FromSpan<'a> for BssemblyExpression<'a> {
+    fn parse_span<
+        E: nom::error::ParseError<nom_locate::LocatedSpan<&'a str>>
+            + nom::error::ContextError<nom_locate::LocatedSpan<&'a str>>,
+    >(
+        s: Span<'a>,
+    ) -> nom::IResult<Span, Self, E> {
+        alt((
+            map(Label::parse_span, Self::Label),
+            map(StringDef::parse_span, Self::StringDef),
+            map(Operation::parse_span, Self::Operation),
+        ))(s)
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct Label<'a> {
+    identifier: Ident<'a>,
+    colon: Span<'a>,
+}
+
+impl<'a> FromSpan<'a> for Label<'a> {
+    fn parse_span<
+        E: nom::error::ParseError<nom_locate::LocatedSpan<&'a str>>
+            + nom::error::ContextError<nom_locate::LocatedSpan<&'a str>>,
+    >(
+        s: Span<'a>,
+    ) -> nom::IResult<Span, Self, E> {
+        let (s, identifier) = Ident::parse_span(s)?;
+        let (s, _) = many0(space1)(s)?;
+        let (s, colon) = tag(":")(s)?;
+        Ok((s, Self { identifier, colon }))
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct StringDef<'a> {
+    dot_string: Span<'a>,
+    value: StringLiteral<'a>,
+}
+
+impl<'a> FromSpan<'a> for StringDef<'a> {
+    fn parse_span<
+        E: nom::error::ParseError<nom_locate::LocatedSpan<&'a str>>
+            + nom::error::ContextError<nom_locate::LocatedSpan<&'a str>>,
+    >(
+        s: Span<'a>,
+    ) -> nom::IResult<Span, Self, E> {
+        let (s, dot_string) = tag(".string")(s)?;
+        let (s, _) = many0(space1)(s)?;
+        let (s, value) = StringLiteral::parse_span(s)?;
+        Ok((s, Self { dot_string, value }))
+    }
+}
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Register<'a> {
@@ -51,7 +184,6 @@ impl std::fmt::Display for Register<'_> {
 pub struct Operation<'a> {
     opcode: Opcode<'a>,
     parameters: Vec<OperationParameterEntry<'a>>,
-    termination: Span<'a>, //either EOF or \n
 }
 
 impl<'a> FromSpan<'a> for Operation<'a> {
@@ -94,15 +226,8 @@ impl<'a> FromSpan<'a> for Operation<'a> {
             }
             first_pass = false;
         }
-        let (s, termination) = alt((eof, line_ending))(next_s)?; //todo: allow comments here?
-        Ok((
-            s,
-            Self {
-                opcode,
-                parameters,
-                termination,
-            },
-        ))
+        let s = next_s;
+        Ok((s, Self { opcode, parameters }))
     }
 }
 

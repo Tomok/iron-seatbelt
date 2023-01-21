@@ -18,9 +18,6 @@ pub use binary_operation::{BinaryOperant, BinaryOperation, BinaryOperator};
 mod bracket_operation;
 pub use bracket_operation::BracketOperation;
 
-mod bssembly;
-pub use bssembly::*;
-
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Expression<'a> {
     IntLiteral(IntLiteral<'a>),
