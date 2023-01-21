@@ -422,6 +422,7 @@ pub enum Statement<'a> {
     IfStatement(IfStatement<'a>),
     ForLoop(ForLoop<'a>),
     DoWhileLoop(DoWhileLoop<'a>),
+    WhileLoop(WhileLoop<'a>),
     CodeBlock(CodeBlock<'a>),
     Expression(ExpressionWithSemicolon<'a>),
     InlineBssembly(bssembly::BssemblyBlock<'a>),
@@ -436,6 +437,7 @@ impl<'a> FromSpan<'a> for Statement<'a> {
             map(IfStatement::parse_span, Self::IfStatement),
             map(ForLoop::parse_span, Self::ForLoop),
             map(DoWhileLoop::parse_span, Self::DoWhileLoop),
+            map(WhileLoop::parse_span, Self::WhileLoop),
             map(CodeBlock::parse_span, Self::CodeBlock),
             map(ExpressionWithSemicolon::parse_span, Self::Expression),
             map(bssembly::BssemblyBlock::parse_span, Self::InlineBssembly),
@@ -745,6 +747,33 @@ impl<'a> FromSpan<'a> for DoWhileLoop<'a> {
                 while_token,
                 condition,
                 semicolon,
+            },
+        ))
+    }
+}
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct WhileLoop<'a> {
+    while_token: Span<'a>,
+    condition: Expression<'a>,
+    code_block: CodeBlock<'a>,
+}
+
+impl<'a> FromSpan<'a> for WhileLoop<'a> {
+    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
+        s: Span<'a>,
+    ) -> IResult<Span, Self, E> {
+        let (s, while_token) = tag("while")(s)?;
+        let (s, _) = space_or_comment1(s).map_err(nom_err2failure)?;
+        let (s, condition) = Expression::parse_span(s).map_err(nom_err2failure)?;
+        let (s, _) = space_or_comment0(s)?;
+        let (s, code_block) = CodeBlock::parse_span(s).map_err(nom_err2failure)?;
+        let (s, _) = space_or_comment0(s)?;
+        Ok((
+            s,
+            Self {
+                while_token,
+                code_block,
+                condition,
             },
         ))
     }
@@ -1209,7 +1238,7 @@ mod tests {
     //#[case("nothing/test_nothing_as_function_parameter.bs")]
     //#[case("test_shadowing.bs")]
     //#[case("test_size_of_expressions_and_types.bs")]
-    //#[case("test_while.bs")]
+    #[case("test_while.bs")]
     //#[case("test_u32_equality.bs")]
     #[case("test_relational_operators.bs")]
     #[case("test_bool_operations.bs")]
