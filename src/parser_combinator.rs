@@ -1120,7 +1120,7 @@ mod tests {
     #[case("test_import.bs")]
     //#[case("test_namespace_with_multiple_definitions.bs")]
     //#[case("assignments/test_assignment_to_const_fails.bs")]
-    //#[case("assignments/test_assignment.bs")]
+    #[case("assignments/test_assignment.bs")]
     #[case("test_empty_main_function.bs")]
     #[case("test_bool_type.bs")]
     #[case("test_modulo.bs")]
