@@ -83,15 +83,6 @@ pub enum FunctionCallee<'a> {
     FunctionCall(Box<FunctionCall<'a>>),
 }
 
-impl<'a> FromSpan<'a> for FunctionCallee<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
-        //todo: functionCall
-        map(IdentPath::parse_span, Self::IdentPath)(s)
-    }
-}
-
 impl<'a> FunctionCallee<'a> {
     pub fn as_ident_path(&self) -> Option<&IdentPath<'a>> {
         if let Self::IdentPath(v) = self {
@@ -139,8 +130,28 @@ impl<'a> FromSpan<'a> for FunctionCallParameters<'a> {
     ) -> IResult<Span, Self, E> {
         let (s, open_brace) = tag("(")(s)?;
         let (s, _) = space_or_comment0(s)?;
-        let (s, parameters) = many0(FunctionCallParameter::parse_span)(s)?;
+        let mut parameters = Vec::new();
+        let (s, first_param) = opt(FunctionCallParameter::parse_span)(s)?;
         let (s, _) = space_or_comment0(s)?;
+        let mut next_s = s;
+        match first_param {
+            None => {}
+            Some(fcp) if fcp.comma.is_some() => {
+                parameters.push(fcp);
+                loop {
+                    let (s, parameter) = FunctionCallParameter::parse_span(next_s)?;
+                    let has_comma = parameter.comma.is_some();
+                    parameters.push(parameter);
+                    let (s, _) = space_or_comment0(s)?;
+                    next_s = s;
+                    if !has_comma {
+                        break;
+                    }
+                }
+            }
+            Some(fcp) => parameters.push(fcp),
+        }
+        let (s, _) = space_or_comment0(next_s)?;
         let (s, closing_brace) = tag(")")(s)?;
         Ok((
             s,
