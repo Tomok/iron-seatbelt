@@ -2,7 +2,7 @@ use nom::bytes::complete::tag;
 
 use crate::parser_combinator::FromSpan;
 
-use super::{space_or_comment0, Expression, Span};
+use super::{space_or_comment0, Expression, Span, SpanParseError};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct BracketOperation<'a> {
@@ -12,12 +12,7 @@ pub struct BracketOperation<'a> {
 }
 
 impl<'a> FromSpan<'a> for BracketOperation<'a> {
-    fn parse_span<
-        E: nom::error::ParseError<nom_locate::LocatedSpan<&'a str>>
-            + nom::error::ContextError<nom_locate::LocatedSpan<&'a str>>,
-    >(
-        s: Span<'a>,
-    ) -> nom::IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> nom::IResult<Span, Self, E> {
         let (s, left_brace) = tag("(")(s)?;
         let (s, _) = space_or_comment0(s)?;
         let (s, operations) = Expression::parse_span(s)?;

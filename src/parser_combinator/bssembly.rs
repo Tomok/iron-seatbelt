@@ -14,7 +14,7 @@ use paste::paste;
 
 use crate::parser_combinator::{space_or_comment0, Comment, StringLiteral};
 
-use super::{FromSpan, Ident, IntLiteral, Span};
+use super::{FromSpan, Ident, IntLiteral, Span, SpanParseError};
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct BssemblyBlock<'a> {
@@ -25,12 +25,7 @@ pub struct BssemblyBlock<'a> {
 }
 
 impl<'a> FromSpan<'a> for BssemblyBlock<'a> {
-    fn parse_span<
-        E: nom::error::ParseError<nom_locate::LocatedSpan<&'a str>>
-            + nom::error::ContextError<nom_locate::LocatedSpan<&'a str>>,
-    >(
-        s: Span<'a>,
-    ) -> nom::IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> nom::IResult<Span, Self, E> {
         let (s, bsm) = tag("bsm")(s)?;
         let (s, _) = space_or_comment0(s)?;
         let (s, open_curly_brace) = tag("{")(s)?;

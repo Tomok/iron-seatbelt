@@ -1,14 +1,8 @@
-use nom::{
-    branch::alt,
-    bytes::complete::tag,
-    combinator::map,
-    error::{ContextError, ParseError},
-    IResult,
-};
-use nom_locate::LocatedSpan;
+use nom::{branch::alt, bytes::complete::tag, combinator::map, IResult};
 
 use super::{
     space_or_comment0, BracketOperation, FromSpan, FunctionCall, IdentPath, IntLiteral, Span,
+    SpanParseError,
 };
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -21,9 +15,7 @@ pub struct BinaryOperation<'a> {
 }
 
 impl<'a> FromSpan<'a> for BinaryOperation<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, seq) = BinaryOperationSequence::parse_span(s)?;
         let res = Self::try_from(seq).unwrap(); //TODO: handle errors!
         Ok((s, res))
@@ -234,9 +226,7 @@ struct BinaryOperationSequence<'a> {
 }
 
 impl<'a> FromSpan<'a> for BinaryOperationSequence<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         const INITIAL_OPERATOR_CAPACITY: usize = 16;
         let mut operators = Vec::with_capacity(INITIAL_OPERATOR_CAPACITY);
         let mut operants = Vec::with_capacity(INITIAL_OPERATOR_CAPACITY + 1);
@@ -344,9 +334,7 @@ pub enum BinaryOperationAssociativity {
 }
 
 impl<'s> BinaryOperator<'s> {
-    pub fn parse_span<E: ParseError<LocatedSpan<&'s str>> + ContextError<LocatedSpan<&'s str>>>(
-        s: Span<'s>,
-    ) -> IResult<Span, Self, E> {
+    pub fn parse_span<E: SpanParseError<'s>>(s: Span<'s>) -> IResult<Span, Self, E> {
         alt((
             map(tag("+"), Self::Add),
             map(tag("-"), Self::Sub),
@@ -415,9 +403,7 @@ enum BinarySequenceOperant<'a> {
 }
 
 impl<'a> FromSpan<'a> for BinarySequenceOperant<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         alt((
             map(BracketOperation::parse_span, Self::BracketOperation),
             map(FunctionCall::parse_span, Self::FunctionCall),
@@ -431,6 +417,7 @@ impl<'a> FromSpan<'a> for BinarySequenceOperant<'a> {
 mod test {
     use super::*;
     use nom::{combinator::all_consuming, error::VerboseError};
+    use nom_locate::LocatedSpan;
     use rstest::rstest;
 
     #[rstest]

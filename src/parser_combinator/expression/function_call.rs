@@ -1,14 +1,12 @@
 use nom::{
     bytes::complete::tag,
     combinator::{map, opt},
-    error::{ContextError, ParseError},
-    multi::{many0, many1},
+    multi::many1,
     sequence::{separated_pair, terminated},
     IResult,
 };
-use nom_locate::LocatedSpan;
 
-use super::{space_or_comment0, Expression, FromSpan, IdentPath, Span};
+use super::{space_or_comment0, Expression, FromSpan, IdentPath, Span, SpanParseError};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct FunctionCall<'a> {
@@ -38,9 +36,7 @@ impl<'a> From<FunctionCallChain<'a>> for FunctionCall<'a> {
 }
 
 impl<'a> FromSpan<'a> for FunctionCall<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, call_chain) = FunctionCallChain::parse_span(s)?;
         Ok((s, call_chain.into()))
     }
@@ -61,9 +57,7 @@ struct FunctionCallChain<'a> {
 }
 
 impl<'a> FromSpan<'a> for FunctionCallChain<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, innermost_function_ident) = IdentPath::parse_span(s)?;
         let (s, _) = space_or_comment0(s)?;
         let (s, call_parameters) = many1(FunctionCallParameters::parse_span)(s)?;
@@ -125,9 +119,7 @@ pub struct FunctionCallParameters<'a> {
 }
 
 impl<'a> FromSpan<'a> for FunctionCallParameters<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, open_brace) = tag("(")(s)?;
         let (s, _) = space_or_comment0(s)?;
         let mut parameters = Vec::new();
@@ -171,9 +163,7 @@ pub struct FunctionCallParameter<'a> {
 }
 
 impl<'a> FromSpan<'a> for FunctionCallParameter<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         terminated(
             map(
                 separated_pair(Expression::parse_span, space_or_comment0, opt(tag(","))),
@@ -191,6 +181,7 @@ impl<'a> FromSpan<'a> for FunctionCallParameter<'a> {
 mod test {
     use super::*;
     use nom::{combinator::all_consuming, error::VerboseError};
+    use nom_locate::LocatedSpan;
 
     #[test]
     fn simple_function_call() {

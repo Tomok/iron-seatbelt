@@ -2,13 +2,13 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     combinator::{map, peek},
-    error::{ContextError, ParseError},
     sequence::{terminated, tuple},
     IResult,
 };
-use nom_locate::LocatedSpan;
 
-use super::{space_or_comment0, CharLiteral, FromSpan, Ident, IdentPath, IntLiteral, Span};
+use super::{
+    space_or_comment0, CharLiteral, FromSpan, IdentPath, IntLiteral, Span, SpanParseError,
+};
 
 mod function_call;
 pub use function_call::{
@@ -176,9 +176,7 @@ impl<'a> Expression<'a> {
 }
 
 impl<'a> FromSpan<'a> for Expression<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         alt((
             map(UnaryOperation::parse_span, Self::UnaryOperation),
             map(FunctionCall::parse_span, Self::FunctionCall),
@@ -197,9 +195,7 @@ impl<'a> FromSpan<'a> for Expression<'a> {
 pub struct Continue<'a>(Span<'a>);
 
 impl<'a> FromSpan<'a> for Continue<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         map(
             terminated(tag("continue"), peek(tuple((space_or_comment0, tag(";"))))),
             Self,
@@ -210,9 +206,7 @@ impl<'a> FromSpan<'a> for Continue<'a> {
 pub struct Break<'a>(Span<'a>);
 
 impl<'a> FromSpan<'a> for Break<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         map(
             terminated(tag("break"), peek(tuple((space_or_comment0, tag(";"))))),
             Self,
@@ -225,6 +219,7 @@ mod test {
 
     use super::*;
     use nom::error::VerboseError;
+    use nom_locate::LocatedSpan;
 
     #[test]
     fn test_break() {

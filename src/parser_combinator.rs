@@ -20,10 +20,16 @@ use expression::Expression;
 mod bssembly;
 
 type Span<'a> = LocatedSpan<&'a str>;
+///shorthand definition for nom::ParseError and nom::ContextError
+pub trait SpanParseError<'a>: nom::error::ParseError<Span<'a>> + ContextError<Span<'a>> {}
+
+impl<'a, T> SpanParseError<'a> for T where
+    T: nom::error::ParseError<Span<'a>> + ContextError<Span<'a>>
+{
+}
+
 trait FromSpan<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E>
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E>
     where
         Self: Sized;
 }
@@ -34,9 +40,7 @@ pub struct BackSeatFile<'a> {
 }
 
 impl<'a> FromSpan<'a> for BackSeatFile<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, (entries, _whitespace)) = context(
             "File",
             all_consuming(tuple((many0(FileEntry::parse_span), space_or_comment0))),
@@ -58,9 +62,7 @@ pub enum FileEntry<'s> {
 }
 
 impl<'a> FromSpan<'a> for FileEntry<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, res) = alt((
             map(Import::parse_span, Self::Import),
             map(Function::parse_span, Self::Function),
@@ -138,9 +140,7 @@ fn not_line_ending(c: char) -> bool {
 }
 
 impl<'a> FromSpan<'a> for Comment<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, double_slashes) = tag("//")(s)?;
         let (s, text) = take_while(not_line_ending)(s)?;
         let (s, _) = space_or_comment0(s)?;
@@ -162,9 +162,7 @@ pub struct Import<'a> {
 }
 
 impl<'a> FromSpan<'a> for Import<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, _) = space_or_comment0(s)?;
         let (s, import) = tag("import")(s)?;
         let (s, _) = space_or_comment1(s)?;
@@ -191,9 +189,7 @@ pub struct ImportSegment<'a> {
 }
 
 impl<'a> FromSpan<'a> for ImportSegment<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, ident) = Ident::parse_span(s)?;
         let (s, dot) = opt(tag("."))(s)?;
         Ok((s, Self { ident, dot }))
@@ -211,9 +207,7 @@ pub struct Function<'a> {
 }
 
 impl<'a> FromSpan<'a> for Function<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, _) = space_or_comment0(s)?;
         let (s, function) = tag("function")(s)?;
         let (s, _) = space_or_comment1(s)?;
@@ -274,9 +268,7 @@ pub struct Parameters<'a> {
 }
 
 impl<'a> FromSpan<'a> for Parameters<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, open_brace) = tag("(")(s)?;
         let mut params = Vec::new();
         let mut next_param_allowed = true; //checks if a parameter is allowed, i.e. it is the
@@ -346,9 +338,7 @@ pub struct Parameter<'a> {
 }
 
 impl<'a> FromSpan<'a> for Parameter<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, name) = Ident::parse_span(s)?;
         let (s, _) = space_or_comment0(s)?;
         let (s, colon) = tag(":")(s)?;
@@ -387,9 +377,7 @@ pub struct CodeBlock<'a> {
 }
 
 impl<'a> FromSpan<'a> for CodeBlock<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, open_curly_brace) = tag("{")(s)?;
         let (s, _) = space_or_comment0(s)?;
         let (s, statements) = many0(terminated(Statement::parse_span, space_or_comment0))(s)
@@ -430,9 +418,7 @@ pub enum Statement<'a> {
 }
 
 impl<'a> FromSpan<'a> for Statement<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let res = alt((
             map(LetStatementWithSemicolon::parse_span, Self::LetStatement),
             map(IfStatement::parse_span, Self::IfStatement),
@@ -455,9 +441,7 @@ pub struct ExpressionWithSemicolon<'a> {
 }
 
 impl<'a> FromSpan<'a> for ExpressionWithSemicolon<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         map(
             separated_pair(opt(Expression::parse_span), space_or_comment0, tag(";")),
             |(expression, semicolon)| Self {
@@ -480,9 +464,7 @@ pub struct LetStatement<'a> {
 }
 
 impl<'a> FromSpan<'a> for LetStatement<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, let_token) = tag("let")(s)?;
         let (s, _) = space_or_comment1(s)?;
         let (s, variable_name) = Ident::parse_span(s).map_err(nom_err2failure)?;
@@ -518,9 +500,7 @@ pub struct LetStatementWithSemicolon<'a> {
 }
 
 impl<'a> FromSpan<'a> for LetStatementWithSemicolon<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         map(
             separated_pair(LetStatement::parse_span, space_or_comment0, tag(";")),
             |(let_statment, semicolon)| Self {
@@ -540,9 +520,7 @@ pub struct IfStatement<'a> {
 }
 
 impl<'a> FromSpan<'a> for IfStatement<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, if_token) = tag("if")(s)?;
         let (s, _) = space_or_comment1(s)?;
         let (s, condition) = Expression::parse_span(s).map_err(nom_err2failure)?;
@@ -570,9 +548,7 @@ pub struct ElseStatement<'a> {
 }
 
 impl<'a> FromSpan<'a> for ElseStatement<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, else_token) = tag("else")(s)?;
         // the multispace is missing here intentionally, as it is mandatory in case of if else
         // but optional in case of a CodeBlock
@@ -597,9 +573,7 @@ pub enum ElseType<'a> {
 }
 
 impl<'a> FromSpan<'a> for ElseType<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         alt((
             map(
                 preceded(space_or_comment0, CodeBlock::parse_span),
@@ -623,9 +597,7 @@ pub struct Loop<'a> {
 }
 
 impl<'a> FromSpan<'a> for Loop<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, loop_token) = tag("loop")(s)?;
         let (s, _) = space_or_comment0(s)?;
         let (s, code_block) = CodeBlock::parse_span(s).map_err(nom_err2failure)?;
@@ -647,9 +619,7 @@ pub struct ForLoop<'a> {
 }
 
 impl<'a> FromSpan<'a> for ForLoop<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, for_token) = tag("for")(s)?;
         let (s, _) = space_or_comment1(s)?;
         let (s, params) = ForLoopKind::parse_span(s).map_err(nom_err2failure)?;
@@ -678,9 +648,7 @@ pub enum ForLoopKind<'a> {
 }
 
 impl<'a> FromSpan<'a> for ForLoopKind<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         alt((
             map(
                 tuple((
@@ -716,9 +684,7 @@ pub struct ForLoopParams<'a> {
 }
 
 impl<'a> FromSpan<'a> for ForLoopParams<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, start_assignment) = opt(LetStatement::parse_span)(s)?;
         let (s, _) = space_or_comment0(s)?;
         let (s, semicolon1) = tag(";")(s)?;
@@ -751,9 +717,7 @@ pub struct DoWhileLoop<'a> {
 }
 
 impl<'a> FromSpan<'a> for DoWhileLoop<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, do_token) = tag("do")(s)?;
         let (s, _) = space_or_comment0(s)?;
         let (s, code_block) = CodeBlock::parse_span(s).map_err(nom_err2failure)?;
@@ -783,9 +747,7 @@ pub struct WhileLoop<'a> {
 }
 
 impl<'a> FromSpan<'a> for WhileLoop<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, while_token) = tag("while")(s)?;
         let (s, _) = space_or_comment1(s).map_err(nom_err2failure)?;
         let (s, condition) = Expression::parse_span(s).map_err(nom_err2failure)?;
@@ -827,9 +789,7 @@ pub enum IntLiteral<'a> {
 }
 
 impl<'a> FromSpan<'a> for IntLiteral<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         alt((
             map(
                 pair(tag("0x"), many1(DigitSegment::parse_span_hex)),
@@ -901,21 +861,13 @@ pub struct DigitSegment<'a> {
 }
 
 impl<'a> DigitSegment<'a> {
-    pub fn parse_span_hex<
-        E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>,
-    >(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    pub fn parse_span_hex<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         map(pair(hex_digit1, opt(tag("_"))), |(digits, underscore)| {
             Self { digits, underscore }
         })(s)
     }
 
-    pub fn parse_span_bin<
-        E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>,
-    >(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    pub fn parse_span_bin<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         fn is_bin(c: char) -> bool {
             "01".contains(c)
         }
@@ -925,11 +877,7 @@ impl<'a> DigitSegment<'a> {
         )(s)
     }
 
-    pub fn parse_span_oct<
-        E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>,
-    >(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    pub fn parse_span_oct<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         fn is_bin(c: char) -> bool {
             "01234567".contains(c)
         }
@@ -939,11 +887,7 @@ impl<'a> DigitSegment<'a> {
         )(s)
     }
 
-    pub fn parse_span_dec<
-        E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>,
-    >(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    pub fn parse_span_dec<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         map(pair(digit1, opt(tag("_"))), |(digits, underscore)| Self {
             digits,
             underscore,
@@ -959,9 +903,7 @@ pub struct CharLiteral<'a> {
 }
 
 impl<'a> FromSpan<'a> for CharLiteral<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         map(
             tuple((tag("'"), SingleCharacterDefinition::parse_span, tag("'"))),
             |(opening_apostrophe, character_definition, closing_apostrophe)| Self {
@@ -993,9 +935,7 @@ pub enum StringFragment<'a> {
 pub struct EscapedStringChar {}
 
 impl<'a> FromSpan<'a> for StringFragment<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let not_quote_slash = is_not("\"\\");
         alt((
             map(
@@ -1014,9 +954,7 @@ impl<'a> FromSpan<'a> for StringFragment<'a> {
 }
 
 impl<'a> FromSpan<'a> for StringLiteral<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         map(
             tuple((tag("\""), many0(StringFragment::parse_span), tag("\""))),
             |(opening_quote, text, closing_quote)| Self {
@@ -1037,12 +975,7 @@ pub enum SingleCharacterDefinition {
 }
 
 impl SingleCharacterDefinition {
-    pub fn parse_span<
-        'a,
-        E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>,
-    >(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    pub fn parse_span<'a, E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         alt((
             map(
                 //todo: convert one_of parameters into constant
@@ -1069,9 +1002,7 @@ impl<'a> Display for &IdentPath<'a> {
 }
 
 impl<'a> FromSpan<'a> for IdentPath<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, segments) = many1(IdentPathSegment::parse_span)(s)?;
         let last_idx = segments.len() - 1;
         for (idx, segment) in segments.iter().enumerate() {
@@ -1103,9 +1034,7 @@ impl<'a> Display for IdentPathSegment<'a> {
 }
 
 impl<'a> FromSpan<'a> for IdentPathSegment<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, ident) = Ident::parse_span(s)?;
         let (s, double_colons) = opt(tag("::"))(s)?;
         Ok((
@@ -1132,9 +1061,7 @@ fn is_ident_char(c: char) -> bool {
 }
 
 impl<'a> FromSpan<'a> for Ident<'a> {
-    fn parse_span<E: ParseError<LocatedSpan<&'a str>> + ContextError<LocatedSpan<&'a str>>>(
-        s: Span<'a>,
-    ) -> IResult<Span, Self, E> {
+    fn parse_span<E: SpanParseError<'a>>(s: Span<'a>) -> IResult<Span, Self, E> {
         let (s, ident) = take_while1(is_ident_char)(s)?;
         //todo: check that ident does not start with a number
         //
