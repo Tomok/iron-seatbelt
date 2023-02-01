@@ -10,11 +10,17 @@ use super::{space_or_comment0, Expression, FromSpan, IdentPath, Span, SpanParseE
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct FunctionCall<'a> {
-    callee: FunctionCallee<'a>,
+    callee: Box<Expression<'a>>, //FunctionCallee<'a>,
     //that could be used?
     parameters: FunctionCallParameters<'a>,
 }
 
+impl<'a> FunctionCall<'a> {
+    pub fn new(callee: Box<Expression<'a>>, parameters: FunctionCallParameters<'a>) -> Self {
+        Self { callee, parameters }
+    }
+}
+/*
 impl<'a> From<FunctionCallChain<'a>> for FunctionCall<'a> {
     fn from(value: FunctionCallChain<'a>) -> Self {
         let (innermost_params, call_params) = value.call_parameters.split_first().unwrap();
@@ -40,7 +46,7 @@ impl<'a> FromSpan<'a> for FunctionCall<'a> {
         let (s, call_chain) = FunctionCallChain::parse_span(s)?;
         Ok((s, call_chain.into()))
     }
-}
+}*/
 
 /// this is a helper for calls on function call return values (e.g. `f()()`), without this [functionCall::parse_span] would
 /// have to call itself to check for this, leading to infinite recursion
@@ -182,7 +188,7 @@ mod test {
     use super::*;
     use nom::{combinator::all_consuming, error::VerboseError};
     use nom_locate::LocatedSpan;
-
+    /* TODO move to expression tests
     #[test]
     fn simple_function_call() {
         let input = "f()";
@@ -219,5 +225,5 @@ mod test {
             "Expected no parameters, but found: {:#?}",
             inner_function.parameters
         );
-    }
+    }*/
 }
